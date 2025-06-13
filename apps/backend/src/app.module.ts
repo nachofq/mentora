@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { LivekitController } from './livekit/livekit.controller';
+import { LivekitModule } from './livekit/livekit.module';
 
 @Module({
-  imports: [],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [LivekitModule],
+  controllers: [LivekitController, AppController],
+  providers: [],
 })
 export class AppModule {}

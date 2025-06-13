@@ -1,0 +1,65 @@
+# Backend API Client
+# Use this file with VSCode REST Client extension to test your backend API endpoints
+# Install the REST Client extension: https://marketplace.visualstudio.com/items?itemName=humao.rest-client
+
+### Variables
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### Health Check
+# Check if the backend server is running
+GET {{baseUrl}}/health
+Accept: {{contentType}}
+
+###
+
+### Livekit - Create Room
+# Create a new Livekit room
+POST {{baseUrl}}/livekit/create-room
+Content-Type: {{contentType}}
+
+###
+
+### Livekit - Create Token  
+# Create a new Livekit token
+POST {{baseUrl}}/livekit/create-token
+Content-Type: {{contentType}}
+
+###
+
+### Test with different environments
+# Development environment
+@devUrl = http://localhost:3000
+
+### Health Check - Dev
+GET {{devUrl}}/health
+
+###
+
+### Production environment (update URL as needed)
+@prodUrl = https://your-production-domain.com
+
+### Health Check - Prod
+GET {{prodUrl}}/health
+
+###
+
+### Example with request body (if needed for future endpoints)
+# POST {{baseUrl}}/api/example
+# Content-Type: {{contentType}}
+# 
+# {
+#   "key": "value",
+#   "data": "example"
+# }
+
+###
+
+### Example with authentication header (if needed for future endpoints)
+# @authToken = your-jwt-token-here
+# 
+# GET {{baseUrl}}/protected-endpoint
+# Authorization: Bearer {{authToken}}
+# Content-Type: {{contentType}}
+
+### 
