@@ -17,13 +17,17 @@
     "@livekit/components-styles": "1.1.6",
     "@livekit/krisp-noise-filter": "0.3.0",
     "@livekit/track-processors": "^0.5.4",
+    "@rainbow-me/rainbowkit": "^2.2.7",
+    "@tanstack/react-query": "^5.80.7",
     "livekit-client": "2.13.5",
     "livekit-server-sdk": "2.13.0",
     "next": "15.2.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-hot-toast": "^2.5.2",
-    "tinykeys": "^3.0.0"
+    "tinykeys": "^3.0.0",
+    "viem": "2.x",
+    "wagmi": "^2.15.6"
   },
   "devDependencies": {
     "@types/node": "22.15.31",
@@ -31,9 +35,9 @@
     "@types/react-dom": "18.3.7",
     "eslint": "9.29.0",
     "eslint-config-next": "15.3.3",
+    "prettier": "3.5.3",
     "source-map-loader": "^5.0.0",
-    "typescript": "5.8.3",
-    "prettier": "3.5.3"
+    "typescript": "5.8.3"
   },
   "engines": {
     "node": ">=18"
