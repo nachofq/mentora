@@ -29,6 +29,7 @@ export class LivekitService {
   }
 
   async createToken() {
+    
     const token = await this.livekitClient.createToken();
     return token;
   }

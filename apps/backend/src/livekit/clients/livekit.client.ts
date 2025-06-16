@@ -32,7 +32,9 @@ export class LivekitClient {
     const roomName = 'quickstart-room';
     // Identifier to be used for participant.
     // It's available as LocalParticipant.identity with livekit-client SDK
-    const participantName = 'quickstart-username';
+
+    const participantName = Math.random().toString(36).substring(2, 15);
+
 
     const at = new AccessToken(
       process.env.LIVEKIT_API_KEY,

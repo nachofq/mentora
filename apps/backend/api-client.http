@@ -15,14 +15,23 @@ Accept: {{contentType}}
 
 ### Livekit - Create Room
 # Create a new Livekit room
-POST {{baseUrl}}/livekit/create-room
+POST {{baseUrl}}/livekit/rooms
 Content-Type: {{contentType}}
+
+###
+
+### Livekit - Get Rooms
+GET {{baseUrl}}/livekit/rooms
+Content-Type: {{contentType}}
+
+###
+
 
 ###
 
 ### Livekit - Create Token  
 # Create a new Livekit token
-POST {{baseUrl}}/livekit/create-token
+POST {{baseUrl}}/livekit/tokens
 Content-Type: {{contentType}}
 
 ###
