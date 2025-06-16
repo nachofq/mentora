@@ -20,6 +20,13 @@ body {
   flex-direction: column;
 }
 
+/* Fix RainbowKit wrapper breaking layout */
+body > [data-rk] {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
 .header {
   max-width: 500px;
   padding-inline: 2rem;

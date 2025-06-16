@@ -80,9 +80,8 @@ export default function Page() {
   return (
     <>
       <main className={styles.main} data-lk-theme="default">
-        <div className="header">
+        <div className="header" style={{ textAlign: 'center' }}>
           <h1> MENTORA </h1>
-          <WalletConnector />
         </div>
         <Suspense fallback="Loading">
           <CustomConnectionTab label="Custom" />

@@ -55,8 +55,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body data-lk-theme="default">
         <Providers>
-          <Toaster />
           {children}
+          <Toaster />
         </Providers>
       </body>
     </html>
