@@ -5,6 +5,7 @@ import '@rainbow-me/rainbowkit/styles.css';
 import type { Metadata, Viewport } from 'next';
 import { Toaster } from 'react-hot-toast';
 import { Providers } from '@/lib/providers';
+import { Navbar } from '@/components/Navbar';
 
 export const metadata: Metadata = {
   title: {
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body data-lk-theme="default">
         <Providers>
+          <Navbar />
           {children}
           <Toaster />
         </Providers>

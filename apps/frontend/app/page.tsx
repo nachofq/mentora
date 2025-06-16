@@ -3,7 +3,6 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { Suspense, useState } from 'react';
 import { encodePassphrase, generateRoomId, randomString } from '@/lib/client-utils';
-import { WalletConnector } from '@/lib/WalletConnector';
 import styles from '../styles/Home.module.css';
 
 function CustomConnectionTab(props: { label: string }) {
@@ -80,8 +79,8 @@ export default function Page() {
   return (
     <>
       <main className={styles.main} data-lk-theme="default">
-        <div className="header" style={{ textAlign: 'center' }}>
-          <h1> MENTORA </h1>
+        <div className="header" style={{ textAlign: 'center', marginTop: '2rem' }}>
+          <h1>Welcome to your meeting</h1>
         </div>
         <Suspense fallback="Loading">
           <CustomConnectionTab label="Custom" />
