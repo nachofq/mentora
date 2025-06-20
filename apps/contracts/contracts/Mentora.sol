@@ -13,6 +13,10 @@ contract Mentora is Ownable, IMentora {
     uint256 private _lobbyCounter;
     mapping(uint256 => Lobby) public lobbies;
 
+    // Mappings to track lobbies by master and participant
+    mapping(address => uint256[]) private masterLobbies;
+    mapping(address => uint256[]) private participantLobbies;
+
     constructor() Ownable(msg.sender) {}
 
     /**
@@ -52,6 +56,9 @@ contract Mentora is Ownable, IMentora {
         newLobby.state = LobbyState.Created;
         newLobby.totalDeposited = 0;
 
+        // Add lobby to master's lobby list
+        masterLobbies[master].push(lobbyId);
+
         emit MentoraEvents.LobbyCreated(
             lobbyId,
             msg.sender,
@@ -64,7 +71,10 @@ contract Mentora is Ownable, IMentora {
         return lobbyId;
     }
 
-    // Placeholder functions for interface compliance
+    /**
+     * @dev Joins a lobby
+     * @param lobbyId The ID of the lobby to join
+     */
     function joinLobby(uint256 lobbyId) external payable override {
         Lobby storage lobby = lobbies[lobbyId];
 
@@ -83,6 +93,10 @@ contract Mentora is Ownable, IMentora {
             "Already joined this lobby"
         );
         require(
+            msg.sender != lobby.master,
+            "Master cannot be a participant in their own lobby"
+        );
+        require(
             msg.value == lobby.amountPerParticipant,
             "Incorrect payment amount"
         );
@@ -91,6 +105,9 @@ contract Mentora is Ownable, IMentora {
         lobby.participants.push(msg.sender);
         lobby.participantDeposits[msg.sender] = msg.value;
         lobby.totalDeposited += msg.value;
+
+        // Add lobby to participant's lobby list
+        participantLobbies[msg.sender].push(lobbyId);
 
         emit MentoraEvents.ParticipantJoined(
             lobbyId,
@@ -145,6 +162,9 @@ contract Mentora is Ownable, IMentora {
                 lobby.participantDeposits[participant] = 0;
                 totalRefunded += depositAmount;
 
+                // Remove lobby from participant's lobby list
+                _removeLobbyFromParticipant(participant, lobbyId);
+
                 // Transfer refund to participant
                 (bool success, ) = payable(participant).call{
                     value: depositAmount
@@ -198,6 +218,9 @@ contract Mentora is Ownable, IMentora {
                 break;
             }
         }
+
+        // Remove lobby from participant's lobby list
+        _removeLobbyFromParticipant(msg.sender, lobbyId);
 
         // Transfer refund to participant
         (bool success, ) = payable(msg.sender).call{value: refundAmount}("");
@@ -336,5 +359,50 @@ contract Mentora is Ownable, IMentora {
      */
     function getTotalLobbies() external view override returns (uint256) {
         return _lobbyCounter;
+    }
+
+    /**
+     * @dev Returns the list of lobby IDs where the caller is the master
+     * @return Array of lobby IDs where the caller is master
+     */
+    function getMyLobbiesAsMaster() external view returns (uint256[] memory) {
+        return masterLobbies[msg.sender];
+    }
+
+    /**
+     * @dev Returns the list of lobby IDs where the caller is a participant
+     * @return Array of lobby IDs where the caller is a participant
+     */
+    function getMyLobbiesAsParticipant()
+        external
+        view
+        returns (uint256[] memory)
+    {
+        return participantLobbies[msg.sender];
+    }
+
+    /**
+     * @dev Internal function to remove a lobby from a participant's lobby list
+     * @param participant The participant address
+     * @param lobbyId The lobby ID to remove
+     */
+    function _removeLobbyFromParticipant(
+        address participant,
+        uint256 lobbyId
+    ) internal {
+        uint256[] storage participantLobbyList = participantLobbies[
+            participant
+        ];
+        for (uint256 i = 0; i < participantLobbyList.length; i++) {
+            if (participantLobbyList[i] == lobbyId) {
+                // Move the last element to the position of the element to remove
+                participantLobbyList[i] = participantLobbyList[
+                    participantLobbyList.length - 1
+                ];
+                // Remove the last element
+                participantLobbyList.pop();
+                break;
+            }
+        }
     }
 }

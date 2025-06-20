@@ -205,5 +205,139 @@ describe('Mentora - Create Lobby', function () {
       expect(lobbyInfo.creator).to.equal(creator.address);
       expect(lobbyInfo.master).to.equal(creator.address);
     });
+
+    it("Should add lobby to master's lobby list when created", async function () {
+      const { mentora, creator, master } = await loadFixture(deployMentora);
+
+      // Check master has no lobbies initially
+      let masterLobbies = await mentora.connect(master).getMyLobbiesAsMaster();
+      expect(masterLobbies.length).to.equal(0);
+
+      // Create lobby
+      await mentora
+        .connect(creator)
+        .createLobby(
+          master.address,
+          lobbyParams.maxParticipants,
+          lobbyParams.amountPerParticipant,
+          lobbyParams.description
+        );
+
+      // Check master now has one lobby
+      masterLobbies = await mentora.connect(master).getMyLobbiesAsMaster();
+      expect(masterLobbies.length).to.equal(1);
+      expect(masterLobbies[0]).to.equal(1);
+    });
+
+    it("Should not add lobby to creator's lobby list if creator is not master", async function () {
+      const { mentora, creator, master } = await loadFixture(deployMentora);
+
+      // Check creator has no lobbies initially
+      let creatorLobbies = await mentora
+        .connect(creator)
+        .getMyLobbiesAsMaster();
+      expect(creatorLobbies.length).to.equal(0);
+
+      // Create lobby with different master
+      await mentora
+        .connect(creator)
+        .createLobby(
+          master.address,
+          lobbyParams.maxParticipants,
+          lobbyParams.amountPerParticipant,
+          lobbyParams.description
+        );
+
+      // Check creator still has no lobbies as master
+      creatorLobbies = await mentora.connect(creator).getMyLobbiesAsMaster();
+      expect(creatorLobbies.length).to.equal(0);
+
+      // But master should have the lobby
+      const masterLobbies = await mentora
+        .connect(master)
+        .getMyLobbiesAsMaster();
+      expect(masterLobbies.length).to.equal(1);
+      expect(masterLobbies[0]).to.equal(1);
+    });
+
+    it("Should add lobby to creator's lobby list when creator is also master", async function () {
+      const { mentora, creator } = await loadFixture(deployMentora);
+
+      // Check creator has no lobbies initially
+      let creatorLobbies = await mentora
+        .connect(creator)
+        .getMyLobbiesAsMaster();
+      expect(creatorLobbies.length).to.equal(0);
+
+      // Create lobby with creator as master
+      await mentora.connect(creator).createLobby(
+        creator.address, // creator is master
+        lobbyParams.maxParticipants,
+        lobbyParams.amountPerParticipant,
+        lobbyParams.description
+      );
+
+      // Check creator now has one lobby as master
+      creatorLobbies = await mentora.connect(creator).getMyLobbiesAsMaster();
+      expect(creatorLobbies.length).to.equal(1);
+      expect(creatorLobbies[0]).to.equal(1);
+    });
+
+    it('Should not add lobby to participant list when creating', async function () {
+      const { mentora, creator, master } = await loadFixture(deployMentora);
+
+      // Create lobby
+      await mentora
+        .connect(creator)
+        .createLobby(
+          master.address,
+          lobbyParams.maxParticipants,
+          lobbyParams.amountPerParticipant,
+          lobbyParams.description
+        );
+
+      // Neither creator nor master should be in participant lists
+      const creatorParticipantLobbies = await mentora
+        .connect(creator)
+        .getMyLobbiesAsParticipant();
+      const masterParticipantLobbies = await mentora
+        .connect(master)
+        .getMyLobbiesAsParticipant();
+
+      expect(creatorParticipantLobbies.length).to.equal(0);
+      expect(masterParticipantLobbies.length).to.equal(0);
+    });
+
+    it('Should track multiple lobbies for same master', async function () {
+      const { mentora, creator, master } = await loadFixture(deployMentora);
+
+      // Create first lobby
+      await mentora
+        .connect(creator)
+        .createLobby(
+          master.address,
+          lobbyParams.maxParticipants,
+          lobbyParams.amountPerParticipant,
+          'First lobby'
+        );
+
+      // Create second lobby with same master
+      await mentora
+        .connect(creator)
+        .createLobby(
+          master.address,
+          lobbyParams.maxParticipants,
+          lobbyParams.amountPerParticipant,
+          'Second lobby'
+        );
+
+      // Check master has both lobbies
+      const masterLobbies = await mentora
+        .connect(master)
+        .getMyLobbiesAsMaster();
+      expect(masterLobbies.length).to.equal(2);
+      expect(masterLobbies[0]).to.equal(1);
+      expect(masterLobbies[1]).to.equal(2);
+    });
   });
 });
