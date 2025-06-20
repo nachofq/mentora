@@ -210,6 +210,41 @@ contract Mentora is Ownable, IMentora {
         );
     }
 
+    /**
+     * @dev Completes a lobby and transfers all funds to the master
+     * @param lobbyId The ID of the lobby to complete
+     */
+    function completeLobby(uint256 lobbyId) external override {
+        Lobby storage lobby = lobbies[lobbyId];
+
+        // Validations
+        require(lobby.id != 0, "Lobby does not exist");
+        require(
+            lobby.state == LobbyState.Accepted,
+            "Lobby must be accepted to be completed"
+        );
+        require(msg.sender == lobby.master, "Only lobby master can complete");
+        require(lobby.totalDeposited > 0, "No funds to transfer");
+
+        uint256 totalPayment = lobby.totalDeposited;
+
+        // Update lobby state first (reentrancy protection)
+        lobby.state = LobbyState.Completed;
+        lobby.totalDeposited = 0;
+
+        // Clear all participant deposits
+        for (uint256 i = 0; i < lobby.participants.length; i++) {
+            address participant = lobby.participants[i];
+            lobby.participantDeposits[participant] = 0;
+        }
+
+        // Transfer all funds to the master
+        (bool success, ) = payable(lobby.master).call{value: totalPayment}("");
+        require(success, "Payment to master failed");
+
+        emit MentoraEvents.LobbyCompleted(lobbyId, lobby.master, totalPayment);
+    }
+
     // View functions for querying lobby information
 
     /**

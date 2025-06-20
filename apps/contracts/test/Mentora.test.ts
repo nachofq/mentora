@@ -9,6 +9,7 @@ import './JoinLobby.test';
 import './AcceptLobby.test';
 import './CancelLobby.test';
 import './AbandonLobby.test';
+import './CompleteLobby.test';
 
 // Test suites included:
 // - Deployment: Contract deployment and initialization
@@ -17,4 +18,5 @@ import './AbandonLobby.test';
 // - AcceptLobby: Masters accepting lobbies and locking funds
 // - CancelLobby: Masters canceling lobbies with refunds
 // - AbandonLobby: Participants abandoning lobbies individually
+// - CompleteLobby: Masters completing lobbies and receiving payments
 // Tests covering all Mentora smart contract functionality

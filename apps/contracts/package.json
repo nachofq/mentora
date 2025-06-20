@@ -3,6 +3,17 @@
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
+  "scripts": {
+    "test": "hardhat test test/Mentora.test.ts",
+    "test:all": "hardhat test",
+    "test:deployment": "hardhat test test/Deployment.test.ts",
+    "test:create": "hardhat test test/CreateLobby.test.ts",
+    "test:join": "hardhat test test/JoinLobby.test.ts",
+    "test:accept": "hardhat test test/AcceptLobby.test.ts",
+    "test:cancel": "hardhat test test/CancelLobby.test.ts",
+    "test:abandon": "hardhat test test/AbandonLobby.test.ts",
+    "test:complete": "hardhat test test/CompleteLobby.test.ts"
+  },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
     "@nomicfoundation/hardhat-ethers": "^3.0.0",

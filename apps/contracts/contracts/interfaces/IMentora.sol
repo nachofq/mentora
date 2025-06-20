@@ -11,7 +11,7 @@ enum LobbyState {
     Created, // Lobby created, waiting for participants
     Accepted, // Master accepted, funds locked
     Cancelled, // Master cancelled, funds returned
-    Payed // Final state - payment completed
+    Completed // Final state - payment completed successfully
 }
 
 // Struct to represent a lobby
@@ -46,6 +46,8 @@ interface IMentora {
     function cancelLobby(uint256 lobbyId) external;
 
     function abandonLobby(uint256 lobbyId) external;
+
+    function completeLobby(uint256 lobbyId) external;
 
     // View functions
     function getLobbyInfo(
