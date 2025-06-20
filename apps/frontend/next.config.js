@@ -1,3 +1,8 @@
+const path = require('path');
+const dotenv = require('dotenv');
+
+dotenv.config({ path: path.join(__dirname, '../../envs/.env.frontend') });
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,

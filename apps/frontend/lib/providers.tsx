@@ -3,12 +3,12 @@
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import { WagmiProvider } from 'wagmi';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
-import { mainnet, polygon, optimism, arbitrum, base, sepolia } from 'wagmi/chains';
+import { arbitrum, arbitrumSepolia } from 'wagmi/chains';
 
 const config = getDefaultConfig({
   appName: 'Mentora',
-  projectId: 'c57a43280e06a97432b13d83e9794586',
-  chains: [mainnet, polygon, optimism, arbitrum, base, sepolia],
+  projectId: process.env.NEXT_PUBLIC_RAINBOW_KIT_PROJECT_ID || '',
+  chains: [arbitrum, arbitrumSepolia],
   ssr: true,
 });
 
