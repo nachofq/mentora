@@ -46,6 +46,19 @@ export const MENTORA_ABI = [
     type: 'function',
   },
   {
+    inputs: [],
+    name: 'getMyLobbiesAsParticipant',
+    outputs: [
+      {
+        internalType: 'uint256[]',
+        name: '',
+        type: 'uint256[]',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
     inputs: [
       {
         internalType: 'uint256',
@@ -188,6 +201,19 @@ export const MENTORA_ABI = [
     name: 'joinLobby',
     outputs: [],
     stateMutability: 'payable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        internalType: 'uint256',
+        name: 'lobbyId',
+        type: 'uint256',
+      },
+    ],
+    name: 'abandonLobby',
+    outputs: [],
+    stateMutability: 'nonpayable',
     type: 'function',
   },
 ] as const;

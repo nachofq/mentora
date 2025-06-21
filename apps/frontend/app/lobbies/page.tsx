@@ -24,7 +24,7 @@ import {
 import { MENTORA_CONTRACT_ADDRESS, MENTORA_ABI, LobbyState } from '@/lib/contract';
 import { formatEther, parseEther } from 'viem';
 import { arbitrumSepolia } from 'wagmi/chains';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 
 // Helper function to convert contract return tuple to LobbyInfo object
@@ -228,9 +228,13 @@ function LobbyRow({ lobbyId, address }: { lobbyId: bigint; address: string }) {
         functionName: 'acceptLobby',
         args: [lobbyId],
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error accepting lobby:', err);
-      toast.error('Failed to accept lobby');
+      if (err?.message?.includes('User rejected') || err?.message?.includes('User denied')) {
+        toast.error('Transaction cancelled by user');
+      } else {
+        toast.error('Failed to accept lobby');
+      }
     }
   };
 
@@ -242,9 +246,13 @@ function LobbyRow({ lobbyId, address }: { lobbyId: bigint; address: string }) {
         functionName: 'cancelLobby',
         args: [lobbyId],
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error cancelling lobby:', err);
-      toast.error('Failed to cancel lobby');
+      if (err?.message?.includes('User rejected') || err?.message?.includes('User denied')) {
+        toast.error('Transaction cancelled by user');
+      } else {
+        toast.error('Failed to cancel lobby');
+      }
     }
   };
 
@@ -256,9 +264,13 @@ function LobbyRow({ lobbyId, address }: { lobbyId: bigint; address: string }) {
         functionName: 'completeLobby',
         args: [lobbyId],
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error completing lobby:', err);
-      toast.error('Failed to complete lobby');
+      if (err?.message?.includes('User rejected') || err?.message?.includes('User denied')) {
+        toast.error('Transaction cancelled by user');
+      } else {
+        toast.error('Failed to complete lobby');
+      }
     }
   };
 
@@ -530,7 +542,328 @@ function MyLobbies() {
   );
 }
 
-function JoinLobby() {
+function JoinLobbiesList({
+  refreshRef,
+}: {
+  refreshRef?: React.MutableRefObject<(() => void) | null>;
+}) {
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+
+  // Fetch lobby IDs where user is participant
+  const {
+    data: lobbyIds,
+    isLoading: isLoadingIds,
+    error: lobbyIdsError,
+    refetch: refetchParticipantLobbies,
+  } = useReadContract({
+    address: MENTORA_CONTRACT_ADDRESS,
+    abi: MENTORA_ABI,
+    functionName: 'getMyLobbiesAsParticipant',
+    account: address,
+    chainId: arbitrumSepolia.id,
+    query: {
+      enabled: isConnected && !!address,
+    },
+  });
+
+  // Expose the refetch function via ref
+  useEffect(() => {
+    if (refreshRef) {
+      refreshRef.current = refetchParticipantLobbies;
+    }
+  }, [refetchParticipantLobbies, refreshRef]);
+
+  if (!isConnected) {
+    return (
+      <div className="bg-card p-6 rounded-lg border">
+        <h2 className="text-2xl font-bold mb-4">My Joined Lobbies</h2>
+        <div className="flex items-center justify-center h-32">
+          <p className="text-muted-foreground">Please connect your wallet to view joined lobbies</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (chainId !== arbitrumSepolia.id) {
+    return (
+      <div className="bg-card p-6 rounded-lg border">
+        <h2 className="text-2xl font-bold mb-4">My Joined Lobbies</h2>
+        <div className="flex items-center justify-center h-32">
+          <p className="text-muted-foreground">Please switch to Arbitrum Sepolia network</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (lobbyIdsError) {
+    return (
+      <div className="bg-card p-6 rounded-lg border">
+        <h2 className="text-2xl font-bold mb-4">My Joined Lobbies</h2>
+        <div className="flex items-center justify-center h-32">
+          <p className="text-red-600">Error loading joined lobbies: {lobbyIdsError.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoadingIds) {
+    return (
+      <div className="bg-card p-6 rounded-lg border">
+        <h2 className="text-2xl font-bold mb-4">My Joined Lobbies</h2>
+        <div className="flex items-center justify-center h-32">
+          <p className="text-muted-foreground">Loading joined lobbies...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!lobbyIds || lobbyIds.length === 0) {
+    return (
+      <div className="bg-card p-6 rounded-lg border">
+        <h2 className="text-2xl font-bold mb-4">My Joined Lobbies</h2>
+        <div className="flex flex-col items-center justify-center h-32 space-y-2">
+          <p className="text-muted-foreground">You haven't joined any lobbies yet</p>
+          <p className="text-sm text-muted-foreground">Use the form on the right to join a lobby</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-card p-6 rounded-lg border">
+      <div className="mb-4">
+        <h2 className="text-2xl font-bold">My Joined Lobbies</h2>
+        <p className="text-muted-foreground mt-1">Lobbies where you are a participant</p>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>ID</TableHead>
+            <TableHead>Description</TableHead>
+            <TableHead>Participants</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>My Deposit</TableHead>
+            <TableHead>Total Deposited</TableHead>
+            <TableHead>Action</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {lobbyIds.map((lobbyId) => (
+            <ParticipantLobbyRow
+              key={lobbyId.toString()}
+              lobbyId={lobbyId}
+              address={address || ''}
+              onAbandonSuccess={refetchParticipantLobbies}
+            />
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// Component for displaying a single lobby row where user is participant
+function ParticipantLobbyRow({
+  lobbyId,
+  address,
+  onAbandonSuccess,
+}: {
+  lobbyId: bigint;
+  address: string;
+  onAbandonSuccess: () => void;
+}) {
+  const {
+    data: lobbyData,
+    isLoading,
+    error,
+    refetch,
+  } = useReadContract({
+    address: MENTORA_CONTRACT_ADDRESS,
+    abi: MENTORA_ABI,
+    functionName: 'getLobbyInfo',
+    args: [lobbyId],
+    account: address as `0x${string}`,
+    chainId: arbitrumSepolia.id,
+    query: {
+      enabled: !!address && !!lobbyId,
+    },
+  });
+
+  // Abandon lobby transaction
+  const {
+    writeContract: abandonLobby,
+    data: abandonHash,
+    isPending: abandonPending,
+  } = useWriteContract();
+  const { isLoading: abandonConfirming, isSuccess: abandonConfirmed } =
+    useWaitForTransactionReceipt({
+      hash: abandonHash,
+    });
+
+  // Handle abandon transaction states
+  useEffect(() => {
+    if (abandonPending) {
+      toast.loading(`Abandoning lobby #${lobbyId.toString()}...`, {
+        id: `abandon-${lobbyId.toString()}`,
+      });
+    }
+  }, [abandonPending, lobbyId]);
+
+  useEffect(() => {
+    if (abandonConfirming) {
+      toast.loading('Waiting for confirmation...', { id: `abandon-${lobbyId.toString()}` });
+    }
+  }, [abandonConfirming, lobbyId]);
+
+  useEffect(() => {
+    if (abandonConfirmed) {
+      toast.success('Successfully abandoned lobby! Your deposit has been refunded.', {
+        id: `abandon-${lobbyId.toString()}`,
+      });
+      // Refresh the participant lobbies list
+      onAbandonSuccess();
+      // Also refetch this specific lobby data
+      refetch();
+    }
+  }, [abandonConfirmed, lobbyId, onAbandonSuccess, refetch]);
+
+  const handleAbandonLobby = async () => {
+    try {
+      abandonLobby({
+        address: MENTORA_CONTRACT_ADDRESS,
+        abi: MENTORA_ABI,
+        functionName: 'abandonLobby',
+        args: [lobbyId],
+      });
+    } catch (err: any) {
+      console.error('Error abandoning lobby:', err);
+      if (err?.message?.includes('User rejected') || err?.message?.includes('User denied')) {
+        toast.error('Transaction cancelled by user');
+      } else {
+        toast.error('Failed to abandon lobby');
+      }
+    }
+  };
+
+  const getStateLabel = (state: bigint) => {
+    switch (Number(state)) {
+      case LobbyState.Created:
+        return 'Open';
+      case LobbyState.Accepted:
+        return 'Accepted';
+      case LobbyState.Cancelled:
+        return 'Cancelled';
+      case LobbyState.Completed:
+        return 'Completed';
+      default:
+        return 'Unknown';
+    }
+  };
+
+  const getStateColor = (state: bigint) => {
+    switch (Number(state)) {
+      case LobbyState.Created:
+        return 'text-blue-600';
+      case LobbyState.Accepted:
+        return 'text-green-600';
+      case LobbyState.Cancelled:
+        return 'text-red-600';
+      case LobbyState.Completed:
+        return 'text-purple-600';
+      default:
+        return 'text-gray-600';
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <TableRow>
+        <TableCell className="font-medium">#{lobbyId.toString()}</TableCell>
+        <TableCell className="text-muted-foreground">Loading...</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+      </TableRow>
+    );
+  }
+
+  if (error || !lobbyData) {
+    return (
+      <TableRow>
+        <TableCell className="font-medium">#{lobbyId.toString()}</TableCell>
+        <TableCell className="text-red-600">Error loading</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+      </TableRow>
+    );
+  }
+
+  const lobby = {
+    id: lobbyData[0],
+    creator: lobbyData[1],
+    master: lobbyData[2],
+    description: lobbyData[3],
+    amountPerParticipant: lobbyData[4],
+    maxParticipants: lobbyData[5],
+    currentParticipants: lobbyData[6],
+    state: BigInt(lobbyData[7]),
+    totalDeposited: lobbyData[8],
+  };
+
+  // Can only abandon lobbies in "Created" state (before they're accepted)
+  const canAbandon = Number(lobby.state) === LobbyState.Created;
+  const isProcessing = abandonPending || abandonConfirming;
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">#{lobby.id.toString()}</TableCell>
+      <TableCell className="max-w-xs truncate" title={lobby.description}>
+        {lobby.description}
+      </TableCell>
+      <TableCell>
+        {lobby.currentParticipants.toString()}/{lobby.maxParticipants.toString()}
+      </TableCell>
+      <TableCell>
+        <span className={`font-medium ${getStateColor(lobby.state)}`}>
+          {getStateLabel(lobby.state)}
+        </span>
+      </TableCell>
+      <TableCell>{formatEther(lobby.amountPerParticipant)} ETH</TableCell>
+      <TableCell>{formatEther(lobby.totalDeposited)} ETH</TableCell>
+      <TableCell>
+        {canAbandon ? (
+          <Button
+            onClick={handleAbandonLobby}
+            disabled={isProcessing}
+            size="sm"
+            variant="destructive"
+          >
+            {isProcessing ? 'Abandoning...' : 'Abandon'}
+          </Button>
+        ) : (
+          <span className="text-sm text-muted-foreground">
+            {Number(lobby.state) === LobbyState.Accepted
+              ? 'Cannot abandon (accepted)'
+              : Number(lobby.state) === LobbyState.Cancelled
+                ? 'Cancelled'
+                : Number(lobby.state) === LobbyState.Completed
+                  ? 'Completed'
+                  : 'Cannot abandon'}
+          </span>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function JoinLobby({ onJoinSuccess }: { onJoinSuccess?: () => void }) {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const [lobbyId, setLobbyId] = useState('');
@@ -579,12 +912,23 @@ function JoinLobby() {
       setLobbyId('');
       // Refetch lobby data to show updated participant count
       refetchLobby();
+      // Call the callback to refresh participant lobbies list
+      if (onJoinSuccess) {
+        onJoinSuccess();
+      }
     }
-  }, [isConfirmed, refetchLobby]);
+  }, [isConfirmed, refetchLobby, onJoinSuccess]);
 
   useEffect(() => {
     if (error) {
-      toast.error(`Error: ${error.message}`, { id: 'join-lobby' });
+      // Check if it's a user rejection error
+      if (error.message.includes('User rejected') || error.message.includes('User denied')) {
+        toast.error('Transaction cancelled by user', { id: 'join-lobby' });
+      } else {
+        // Show a simplified error message for other errors
+        const errorMessage = error.message.split('\n')[0] || 'Failed to join lobby';
+        toast.error(`Error: ${errorMessage}`, { id: 'join-lobby' });
+      }
       setIsJoining(false);
     }
   }, [error]);
@@ -814,11 +1158,23 @@ function JoinLobby() {
 }
 
 function JoinedLobbies() {
+  const refreshParticipantLobbiesRef = useRef<(() => void) | null>(null);
+
+  const handleJoinSuccess = () => {
+    if (refreshParticipantLobbiesRef.current) {
+      refreshParticipantLobbiesRef.current();
+    }
+  };
+
   return (
-    <>
-      <JoinLobby />
-      <div>Joined Lobbies</div>
-    </>
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      <div className="lg:col-span-3">
+        <JoinLobbiesList refreshRef={refreshParticipantLobbiesRef} />
+      </div>
+      <div className="lg:col-span-2">
+        <JoinLobby onJoinSuccess={handleJoinSuccess} />
+      </div>
+    </div>
   );
 }
 
@@ -870,7 +1226,14 @@ function CreateLobby() {
 
   useEffect(() => {
     if (error) {
-      toast.error(`Error: ${error.message}`, { id: 'create-lobby' });
+      // Check if it's a user rejection error
+      if (error.message.includes('User rejected') || error.message.includes('User denied')) {
+        toast.error('Transaction cancelled by user', { id: 'create-lobby' });
+      } else {
+        // Show a simplified error message for other errors
+        const errorMessage = error.message.split('\n')[0] || 'Failed to create lobby';
+        toast.error(`Error: ${errorMessage}`, { id: 'create-lobby' });
+      }
       setIsSubmitting(false);
     }
   }, [error]);
@@ -1024,9 +1387,8 @@ function CreateLobby() {
             <input
               id="amountPerParticipant"
               type="number"
-              step="0.001"
-              min="0.001"
-              placeholder="0.01"
+              step="0.00000000001"
+              placeholder="0.001"
               value={formData.amountPerParticipant}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 handleInputChange('amountPerParticipant', e.target.value)
