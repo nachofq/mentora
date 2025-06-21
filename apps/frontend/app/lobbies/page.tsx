@@ -15,6 +15,15 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
+import {
   useAccount,
   useReadContract,
   useChainId,
@@ -24,7 +33,7 @@ import {
 import { MENTORA_CONTRACT_ADDRESS, MENTORA_ABI, LobbyState } from '@/lib/contract';
 import { formatEther, parseEther } from 'viem';
 import { arbitrumSepolia } from 'wagmi/chains';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 
 // Helper function to convert contract return tuple to LobbyInfo object
@@ -423,6 +432,8 @@ function JoinLobbiesList({
 }) {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   // Fetch lobby IDs where user is participant
   const {
@@ -440,6 +451,29 @@ function JoinLobbiesList({
       enabled: isConnected && !!address,
     },
   });
+
+  // Sort lobbies newest first and implement pagination
+  const { paginatedLobbyIds, totalPages } = useMemo(() => {
+    if (!lobbyIds || lobbyIds.length === 0) {
+      return { paginatedLobbyIds: [], totalPages: 0 };
+    }
+
+    // Sort lobbies by ID in descending order (newest first)
+    const sortedLobbyIds = [...lobbyIds].sort((a, b) => Number(b) - Number(a));
+
+    // Calculate pagination
+    const total = Math.ceil(sortedLobbyIds.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginated = sortedLobbyIds.slice(startIndex, endIndex);
+
+    return { paginatedLobbyIds: paginated, totalPages: total };
+  }, [lobbyIds, currentPage, itemsPerPage]);
+
+  // Reset to first page when lobbies change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [lobbyIds]);
 
   // Expose the refetch function via ref
   useEffect(() => {
@@ -524,7 +558,7 @@ function JoinLobbiesList({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {lobbyIds.map((lobbyId) => (
+          {paginatedLobbyIds.map((lobbyId) => (
             <ParticipantLobbyRow
               key={lobbyId.toString()}
               lobbyId={lobbyId}
@@ -534,6 +568,44 @@ function JoinLobbiesList({
           ))}
         </TableBody>
       </Table>
+
+      {totalPages > 1 && (
+        <div className="mt-4">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  className={
+                    currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'
+                  }
+                />
+              </PaginationItem>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <PaginationItem key={page}>
+                  <PaginationLink
+                    onClick={() => setCurrentPage(page)}
+                    isActive={currentPage === page}
+                    className="cursor-pointer"
+                  >
+                    {page}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  className={
+                    currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </div>
   );
 }
@@ -1329,6 +1401,8 @@ function MyLobbiesList({
 }) {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   // Debug logging for contract parameters
   console.log('Contract call parameters:', {
@@ -1355,6 +1429,29 @@ function MyLobbiesList({
       enabled: isConnected && !!address,
     },
   });
+
+  // Sort lobbies newest first and implement pagination
+  const { paginatedLobbyIds, totalPages } = useMemo(() => {
+    if (!lobbyIds || lobbyIds.length === 0) {
+      return { paginatedLobbyIds: [], totalPages: 0 };
+    }
+
+    // Sort lobbies by ID in descending order (newest first)
+    const sortedLobbyIds = [...lobbyIds].sort((a, b) => Number(b) - Number(a));
+
+    // Calculate pagination
+    const total = Math.ceil(sortedLobbyIds.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginated = sortedLobbyIds.slice(startIndex, endIndex);
+
+    return { paginatedLobbyIds: paginated, totalPages: total };
+  }, [lobbyIds, currentPage, itemsPerPage]);
+
+  // Reset to first page when lobbies change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [lobbyIds]);
 
   // Expose the refetch function via ref
   useEffect(() => {
@@ -1470,11 +1567,49 @@ function MyLobbiesList({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {lobbyIds.map((lobbyId) => (
+          {paginatedLobbyIds.map((lobbyId) => (
             <LobbyRow key={lobbyId.toString()} lobbyId={lobbyId} address={address || ''} />
           ))}
         </TableBody>
       </Table>
+
+      {totalPages > 1 && (
+        <div className="mt-4">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  className={
+                    currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'
+                  }
+                />
+              </PaginationItem>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <PaginationItem key={page}>
+                  <PaginationLink
+                    onClick={() => setCurrentPage(page)}
+                    isActive={currentPage === page}
+                    className="cursor-pointer"
+                  >
+                    {page}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  className={
+                    currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </div>
   );
 }

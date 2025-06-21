@@ -24,6 +24,7 @@
     "@rainbow-me/rainbowkit": "^2.2.7",
     "@tailwindcss/postcss": "^4.1.10",
     "@tanstack/react-query": "^5.80.7",
+    "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^16.5.0",
