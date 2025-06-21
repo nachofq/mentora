@@ -44,51 +44,223 @@ function tupleToLobbyInfo(
   };
 }
 
-function MyLobbies() {
-  const { address, isConnected } = useAccount();
-  const chainId = useChainId();
-
-  // Fetch lobby IDs where user is master
-  const { data: lobbyIds, isLoading: isLoadingIds } = useReadContract({
+// Separate component for a single lobby info query
+function LobbyInfoQuery({ lobbyId, address }: { lobbyId: bigint; address: string }) {
+  const { data, isLoading, error } = useReadContract({
     address: MENTORA_CONTRACT_ADDRESS,
     abi: MENTORA_ABI,
-    functionName: 'getMyLobbiesAsMaster',
+    functionName: 'getLobbyInfo',
+    args: [lobbyId],
+    account: address as `0x${string}`,
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: isConnected && !!address,
+      enabled: !!address && !!lobbyId,
     },
   });
 
-  // Fetch detailed info for each lobby
-  const lobbyInfoQueries = (lobbyIds || []).map((lobbyId: bigint) =>
-    useReadContract({
-      address: MENTORA_CONTRACT_ADDRESS,
-      abi: MENTORA_ABI,
-      functionName: 'getLobbyInfo',
-      args: [lobbyId],
-      chainId: arbitrumSepolia.id,
-      query: {
-        enabled: isConnected && !!address && !!lobbyIds,
-      },
-    }),
-  );
+  console.log(`Lobby ${lobbyId.toString()} query:`, { data, isLoading, error: error?.message });
 
-  const lobbies = lobbyInfoQueries
-    .map((query) => query.data)
-    .filter((data): data is NonNullable<typeof data> => data !== undefined)
-    .map((data) => ({
-      id: data[0],
-      creator: data[1],
-      master: data[2],
-      description: data[3],
-      amountPerParticipant: data[4],
-      maxParticipants: data[5],
-      currentParticipants: data[6],
-      state: BigInt(data[7]),
-      totalDeposited: data[8],
-    }));
+  return { data, isLoading, error };
+}
 
-  const isLoading = isLoadingIds || lobbyInfoQueries.some((query) => query.isLoading);
+// Component to manage multiple lobby queries
+function LobbiesData({ lobbyIds, address }: { lobbyIds: bigint[]; address: string }) {
+  const [lobbiesData, setLobbiesData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!lobbyIds.length) {
+      setLobbiesData([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchLobbies = async () => {
+      const promises = lobbyIds.map(async (lobbyId) => {
+        try {
+          // For now, let's return the lobby IDs and we'll fetch details differently
+          return { id: lobbyId, data: null };
+        } catch (error) {
+          console.error(`Error fetching lobby ${lobbyId}:`, error);
+          return { id: lobbyId, data: null, error };
+        }
+      });
+
+      const results = await Promise.all(promises);
+      setLobbiesData(results);
+      setIsLoading(false);
+    };
+
+    fetchLobbies();
+  }, [lobbyIds, address]);
+
+  return { lobbiesData, isLoading };
+}
+
+// Component for displaying a single lobby row with detailed information
+function LobbyRow({ lobbyId, address }: { lobbyId: bigint; address: string }) {
+  const {
+    data: lobbyData,
+    isLoading,
+    error,
+    refetch,
+  } = useReadContract({
+    address: MENTORA_CONTRACT_ADDRESS,
+    abi: MENTORA_ABI,
+    functionName: 'getLobbyInfo',
+    args: [lobbyId],
+    account: address as `0x${string}`,
+    chainId: arbitrumSepolia.id,
+    query: {
+      enabled: !!address && !!lobbyId,
+    },
+  });
+
+  // Accept lobby transaction
+  const {
+    writeContract: acceptLobby,
+    data: acceptHash,
+    isPending: acceptPending,
+  } = useWriteContract();
+  const { isLoading: acceptConfirming, isSuccess: acceptConfirmed } = useWaitForTransactionReceipt({
+    hash: acceptHash,
+  });
+
+  // Cancel lobby transaction
+  const {
+    writeContract: cancelLobby,
+    data: cancelHash,
+    isPending: cancelPending,
+  } = useWriteContract();
+  const { isLoading: cancelConfirming, isSuccess: cancelConfirmed } = useWaitForTransactionReceipt({
+    hash: cancelHash,
+  });
+
+  // Complete lobby transaction
+  const {
+    writeContract: completeLobby,
+    data: completeHash,
+    isPending: completePending,
+  } = useWriteContract();
+  const { isLoading: completeConfirming, isSuccess: completeConfirmed } =
+    useWaitForTransactionReceipt({
+      hash: completeHash,
+    });
+
+  // Handle accept transaction states
+  useEffect(() => {
+    if (acceptPending) {
+      toast.loading(`Accepting lobby #${lobbyId.toString()}...`, {
+        id: `accept-${lobbyId.toString()}`,
+      });
+    }
+  }, [acceptPending, lobbyId]);
+
+  useEffect(() => {
+    if (acceptConfirming) {
+      toast.loading('Waiting for confirmation...', { id: `accept-${lobbyId.toString()}` });
+    }
+  }, [acceptConfirming, lobbyId]);
+
+  useEffect(() => {
+    if (acceptConfirmed) {
+      toast.success('Lobby accepted successfully!', { id: `accept-${lobbyId.toString()}` });
+      refetch();
+    }
+  }, [acceptConfirmed, lobbyId, refetch]);
+
+  // Handle cancel transaction states
+  useEffect(() => {
+    if (cancelPending) {
+      toast.loading(`Cancelling lobby #${lobbyId.toString()}...`, {
+        id: `cancel-${lobbyId.toString()}`,
+      });
+    }
+  }, [cancelPending, lobbyId]);
+
+  useEffect(() => {
+    if (cancelConfirming) {
+      toast.loading('Waiting for confirmation...', { id: `cancel-${lobbyId.toString()}` });
+    }
+  }, [cancelConfirming, lobbyId]);
+
+  useEffect(() => {
+    if (cancelConfirmed) {
+      toast.success('Lobby cancelled successfully! All participants have been refunded.', {
+        id: `cancel-${lobbyId.toString()}`,
+      });
+      refetch();
+    }
+  }, [cancelConfirmed, lobbyId, refetch]);
+
+  // Handle complete transaction states
+  useEffect(() => {
+    if (completePending) {
+      toast.loading(`Completing lobby #${lobbyId.toString()}...`, {
+        id: `complete-${lobbyId.toString()}`,
+      });
+    }
+  }, [completePending, lobbyId]);
+
+  useEffect(() => {
+    if (completeConfirming) {
+      toast.loading('Waiting for confirmation...', { id: `complete-${lobbyId.toString()}` });
+    }
+  }, [completeConfirming, lobbyId]);
+
+  useEffect(() => {
+    if (completeConfirmed) {
+      toast.success(
+        'Lobby completed successfully! All funds have been transferred to the master.',
+        {
+          id: `complete-${lobbyId.toString()}`,
+        },
+      );
+      refetch();
+    }
+  }, [completeConfirmed, lobbyId, refetch]);
+
+  const handleAcceptLobby = async () => {
+    try {
+      acceptLobby({
+        address: MENTORA_CONTRACT_ADDRESS,
+        abi: MENTORA_ABI,
+        functionName: 'acceptLobby',
+        args: [lobbyId],
+      });
+    } catch (err) {
+      console.error('Error accepting lobby:', err);
+      toast.error('Failed to accept lobby');
+    }
+  };
+
+  const handleCancelLobby = async () => {
+    try {
+      cancelLobby({
+        address: MENTORA_CONTRACT_ADDRESS,
+        abi: MENTORA_ABI,
+        functionName: 'cancelLobby',
+        args: [lobbyId],
+      });
+    } catch (err) {
+      console.error('Error cancelling lobby:', err);
+      toast.error('Failed to cancel lobby');
+    }
+  };
+
+  const handleCompleteLobby = async () => {
+    try {
+      completeLobby({
+        address: MENTORA_CONTRACT_ADDRESS,
+        abi: MENTORA_ABI,
+        functionName: 'completeLobby',
+        args: [lobbyId],
+      });
+    } catch (err) {
+      console.error('Error completing lobby:', err);
+      toast.error('Failed to complete lobby');
+    }
+  };
 
   const getStateLabel = (state: bigint) => {
     switch (Number(state)) {
@@ -120,6 +292,162 @@ function MyLobbies() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <TableRow>
+        <TableCell className="font-medium">#{lobbyId.toString()}</TableCell>
+        <TableCell className="text-muted-foreground">Loading...</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+      </TableRow>
+    );
+  }
+
+  if (error || !lobbyData) {
+    return (
+      <TableRow>
+        <TableCell className="font-medium">#{lobbyId.toString()}</TableCell>
+        <TableCell className="text-red-600">Error loading</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+        <TableCell className="text-muted-foreground">-</TableCell>
+      </TableRow>
+    );
+  }
+
+  const lobby = {
+    id: lobbyData[0],
+    creator: lobbyData[1],
+    master: lobbyData[2],
+    description: lobbyData[3],
+    amountPerParticipant: lobbyData[4],
+    maxParticipants: lobbyData[5],
+    currentParticipants: lobbyData[6],
+    state: BigInt(lobbyData[7]),
+    totalDeposited: lobbyData[8],
+  };
+
+  const canAccept = Number(lobby.state) === LobbyState.Created;
+  const canCancel =
+    Number(lobby.state) === LobbyState.Created || Number(lobby.state) === LobbyState.Accepted;
+  const canComplete = Number(lobby.state) === LobbyState.Accepted;
+  const isAcceptProcessing = acceptPending || acceptConfirming;
+  const isCancelProcessing = cancelPending || cancelConfirming;
+  const isCompleteProcessing = completePending || completeConfirming;
+  const isAnyProcessing = isAcceptProcessing || isCancelProcessing || isCompleteProcessing;
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">#{lobby.id.toString()}</TableCell>
+      <TableCell className="max-w-xs truncate" title={lobby.description}>
+        {lobby.description}
+      </TableCell>
+      <TableCell>
+        {lobby.currentParticipants.toString()}/{lobby.maxParticipants.toString()}
+      </TableCell>
+      <TableCell>{formatEther(lobby.amountPerParticipant)} ETH</TableCell>
+      <TableCell>{formatEther(lobby.totalDeposited)} ETH</TableCell>
+      <TableCell>
+        <span className={`font-medium ${getStateColor(lobby.state)}`}>
+          {getStateLabel(lobby.state)}
+        </span>
+      </TableCell>
+      <TableCell>
+        <div className="flex gap-2 flex-wrap">
+          {canAccept && (
+            <Button
+              onClick={handleAcceptLobby}
+              disabled={isAnyProcessing}
+              size="sm"
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isAcceptProcessing ? 'Accepting...' : 'Accept'}
+            </Button>
+          )}
+          {canComplete && (
+            <Button
+              onClick={handleCompleteLobby}
+              disabled={isAnyProcessing}
+              size="sm"
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {isCompleteProcessing ? 'Completing...' : 'Complete'}
+            </Button>
+          )}
+          {canCancel && (
+            <Button
+              onClick={handleCancelLobby}
+              disabled={isAnyProcessing}
+              size="sm"
+              variant="destructive"
+            >
+              {isCancelProcessing ? 'Cancelling...' : 'Cancel'}
+            </Button>
+          )}
+          {!canAccept && !canCancel && !canComplete && (
+            <span className="text-sm text-muted-foreground">
+              {Number(lobby.state) === LobbyState.Cancelled
+                ? 'Cancelled'
+                : Number(lobby.state) === LobbyState.Completed
+                  ? 'Completed'
+                  : 'No actions'}
+            </span>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function MyLobbies() {
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+
+  // Debug logging for contract parameters
+  console.log('Contract call parameters:', {
+    contractAddress: MENTORA_CONTRACT_ADDRESS,
+    chainId,
+    expectedChainId: arbitrumSepolia.id,
+    address,
+    isConnected,
+  });
+
+  // Fetch lobby IDs where user is master
+  const {
+    data: lobbyIds,
+    isLoading: isLoadingIds,
+    error: lobbyIdsError,
+  } = useReadContract({
+    address: MENTORA_CONTRACT_ADDRESS,
+    abi: MENTORA_ABI,
+    functionName: 'getMyLobbiesAsMaster',
+    account: address, // Explicitly set the account for msg.sender
+    chainId: arbitrumSepolia.id,
+    query: {
+      enabled: isConnected && !!address,
+    },
+  });
+
+  // Debug logging
+  console.log('MyLobbies Debug:', {
+    address,
+    isConnected,
+    chainId,
+    expectedChainId: arbitrumSepolia.id,
+    contractAddress: MENTORA_CONTRACT_ADDRESS,
+    lobbyIds,
+    lobbyIdsType: typeof lobbyIds,
+    lobbyIdsLength: lobbyIds?.length,
+    isLoadingIds,
+    lobbyIdsError: lobbyIdsError?.message || lobbyIdsError,
+    rawLobbyIds: lobbyIds,
+  });
+
   if (!isConnected) {
     return (
       <div className="flex items-center justify-center h-32">
@@ -131,30 +459,55 @@ function MyLobbies() {
   if (chainId !== arbitrumSepolia.id) {
     return (
       <div className="flex items-center justify-center h-32">
-        <p className="text-muted-foreground">Please switch to Arbitrum Sepolia network</p>
+        <div className="text-center space-y-2">
+          <p className="text-muted-foreground">Please switch to Arbitrum Sepolia network</p>
+          <p className="text-sm text-gray-500">
+            Current: {chainId}, Expected: {arbitrumSepolia.id}
+          </p>
+        </div>
       </div>
     );
   }
 
-  if (isLoading) {
+  if (lobbyIdsError) {
     return (
       <div className="flex items-center justify-center h-32">
-        <p className="text-muted-foreground">Loading your lobbies...</p>
+        <div className="text-center space-y-2">
+          <p className="text-red-600">Error loading lobbies: {lobbyIdsError.message}</p>
+          <p className="text-sm text-gray-500">Check console for details</p>
+        </div>
       </div>
     );
   }
 
-  if (!lobbies.length) {
+  if (isLoadingIds) {
     return (
       <div className="flex items-center justify-center h-32">
+        <div className="text-center space-y-2">
+          <p className="text-muted-foreground">Loading your lobbies...</p>
+          <p className="text-sm text-gray-500">Loading lobby IDs...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!lobbyIds || lobbyIds.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-32 space-y-2">
         <p className="text-muted-foreground">You don't have any lobbies as master yet</p>
+        <p className="text-sm text-muted-foreground">Connected as: {address}</p>
+        <p className="text-xs text-gray-500">Raw response: {JSON.stringify(lobbyIds)}</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold">My Lobbies</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">My Lobbies</h2>
+        <p className="text-sm text-muted-foreground">Connected as: {address}</p>
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -164,24 +517,12 @@ function MyLobbies() {
             <TableHead>Amount per Participant</TableHead>
             <TableHead>Total Deposited</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Action</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {lobbies.map((lobby) => (
-            <TableRow key={lobby.id.toString()}>
-              <TableCell className="font-medium">#{lobby.id.toString()}</TableCell>
-              <TableCell className="max-w-xs truncate">{lobby.description}</TableCell>
-              <TableCell>
-                {lobby.currentParticipants.toString()}/{lobby.maxParticipants.toString()}
-              </TableCell>
-              <TableCell>{formatEther(lobby.amountPerParticipant)} ETH</TableCell>
-              <TableCell>{formatEther(lobby.totalDeposited)} ETH</TableCell>
-              <TableCell>
-                <span className={`font-medium ${getStateColor(lobby.state)}`}>
-                  {getStateLabel(lobby.state)}
-                </span>
-              </TableCell>
-            </TableRow>
+          {lobbyIds.map((lobbyId) => (
+            <LobbyRow key={lobbyId.toString()} lobbyId={lobbyId} address={address || ''} />
           ))}
         </TableBody>
       </Table>
@@ -312,6 +653,12 @@ function CreateLobby() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const useMyAddress = () => {
+    if (address) {
+      setFormData((prev) => ({ ...prev, master: address }));
+    }
+  };
+
   if (!isConnected) {
     return (
       <div className="flex items-center justify-center h-32">
@@ -341,19 +688,28 @@ function CreateLobby() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="master">Master Address</Label>
-            <input
-              id="master"
-              type="text"
-              placeholder="0x..."
-              value={formData.master}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                handleInputChange('master', e.target.value)
-              }
-              className="w-full px-3 py-2 border border-input rounded-md bg-background font-mono"
-            />
-            <p className="text-sm text-muted-foreground">
-              The address that will receive payments when the lobby is completed
-            </p>
+            <div className="flex gap-2">
+              <input
+                id="master"
+                type="text"
+                placeholder="0x..."
+                value={formData.master}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  handleInputChange('master', e.target.value)
+                }
+                className="flex-1 px-3 py-2 border border-input rounded-md bg-background font-mono"
+              />
+              <Button type="button" variant="outline" onClick={useMyAddress} className="shrink-0">
+                Use My Address
+              </Button>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+              <p className="text-sm text-blue-800">
+                <strong>Important:</strong> The master address will receive all payments when the
+                lobby is completed. If you want to see this lobby in "My Lobbies" tab, use your
+                connected wallet address ({address}) as the master.
+              </p>
+            </div>
           </div>
 
           <div className="space-y-2">

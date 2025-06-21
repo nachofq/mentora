@@ -2,6 +2,13 @@ import { Address } from 'viem';
 
 export const MENTORA_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_MENTORA_ADDRESS! as Address;
 
+// Debug logging to see what address is being used
+console.log('Contract configuration:', {
+  NEXT_PUBLIC_MENTORA_ADDRESS: process.env.NEXT_PUBLIC_MENTORA_ADDRESS,
+  MENTORA_CONTRACT_ADDRESS,
+  expectedAddress: '0xf16Bf5Dc5Be24a29F551dB022D53df6884AAc39D',
+});
+
 // LobbyState enum (values from contract)
 export enum LobbyState {
   Created = 0,
@@ -128,6 +135,45 @@ export const MENTORA_ABI = [
         type: 'uint256',
       },
     ],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        internalType: 'uint256',
+        name: 'lobbyId',
+        type: 'uint256',
+      },
+    ],
+    name: 'acceptLobby',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        internalType: 'uint256',
+        name: 'lobbyId',
+        type: 'uint256',
+      },
+    ],
+    name: 'cancelLobby',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        internalType: 'uint256',
+        name: 'lobbyId',
+        type: 'uint256',
+      },
+    ],
+    name: 'completeLobby',
+    outputs: [],
     stateMutability: 'nonpayable',
     type: 'function',
   },
