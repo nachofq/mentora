@@ -416,132 +416,6 @@ function LobbyRow({ lobbyId, address }: { lobbyId: bigint; address: string }) {
   );
 }
 
-function MyLobbies() {
-  const { address, isConnected } = useAccount();
-  const chainId = useChainId();
-
-  // Debug logging for contract parameters
-  console.log('Contract call parameters:', {
-    contractAddress: MENTORA_CONTRACT_ADDRESS,
-    chainId,
-    expectedChainId: arbitrumSepolia.id,
-    address,
-    isConnected,
-  });
-
-  // Fetch lobby IDs where user is master
-  const {
-    data: lobbyIds,
-    isLoading: isLoadingIds,
-    error: lobbyIdsError,
-  } = useReadContract({
-    address: MENTORA_CONTRACT_ADDRESS,
-    abi: MENTORA_ABI,
-    functionName: 'getMyLobbiesAsMaster',
-    account: address, // Explicitly set the account for msg.sender
-    chainId: arbitrumSepolia.id,
-    query: {
-      enabled: isConnected && !!address,
-    },
-  });
-
-  // Debug logging
-  console.log('MyLobbies Debug:', {
-    address,
-    isConnected,
-    chainId,
-    expectedChainId: arbitrumSepolia.id,
-    contractAddress: MENTORA_CONTRACT_ADDRESS,
-    lobbyIds,
-    lobbyIdsType: typeof lobbyIds,
-    lobbyIdsLength: lobbyIds?.length,
-    isLoadingIds,
-    lobbyIdsError: lobbyIdsError?.message || lobbyIdsError,
-    rawLobbyIds: lobbyIds,
-  });
-
-  if (!isConnected) {
-    return (
-      <div className="flex items-center justify-center h-32">
-        <p className="text-muted-foreground">Please connect your wallet to view your lobbies</p>
-      </div>
-    );
-  }
-
-  if (chainId !== arbitrumSepolia.id) {
-    return (
-      <div className="flex items-center justify-center h-32">
-        <div className="text-center space-y-2">
-          <p className="text-muted-foreground">Please switch to Arbitrum Sepolia network</p>
-          <p className="text-sm text-gray-500">
-            Current: {chainId}, Expected: {arbitrumSepolia.id}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (lobbyIdsError) {
-    return (
-      <div className="flex items-center justify-center h-32">
-        <div className="text-center space-y-2">
-          <p className="text-red-600">Error loading lobbies: {lobbyIdsError.message}</p>
-          <p className="text-sm text-gray-500">Check console for details</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoadingIds) {
-    return (
-      <div className="flex items-center justify-center h-32">
-        <div className="text-center space-y-2">
-          <p className="text-muted-foreground">Loading your lobbies...</p>
-          <p className="text-sm text-gray-500">Loading lobby IDs...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!lobbyIds || lobbyIds.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-32 space-y-2">
-        <p className="text-muted-foreground">You don't have any lobbies as master yet</p>
-        <p className="text-sm text-muted-foreground">Connected as: {address}</p>
-        <p className="text-xs text-gray-500">Raw response: {JSON.stringify(lobbyIds)}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">My Lobbies</h2>
-        <p className="text-sm text-muted-foreground">Connected as: {address}</p>
-      </div>
-
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>ID</TableHead>
-            <TableHead>Description</TableHead>
-            <TableHead>Participants</TableHead>
-            <TableHead>Amount per Participant</TableHead>
-            <TableHead>Total Deposited</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Action</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {lobbyIds.map((lobbyId) => (
-            <LobbyRow key={lobbyId.toString()} lobbyId={lobbyId} address={address || ''} />
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  );
-}
-
 function JoinLobbiesList({
   refreshRef,
 }: {
@@ -1178,7 +1052,7 @@ function JoinedLobbies() {
   );
 }
 
-function CreateLobby() {
+function CreateLobby({ onCreateSuccess }: { onCreateSuccess?: () => void }) {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1221,8 +1095,12 @@ function CreateLobby() {
         amountPerParticipant: '',
         description: '',
       });
+      // Call the callback to refresh my lobbies list
+      if (onCreateSuccess) {
+        onCreateSuccess();
+      }
     }
-  }, [isConfirmed]);
+  }, [isConfirmed, onCreateSuccess]);
 
   useEffect(() => {
     if (error) {
@@ -1354,13 +1232,6 @@ function CreateLobby() {
                 Use My Address
               </Button>
             </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-              <p className="text-sm text-blue-800">
-                <strong>Important:</strong> The master address will receive all payments when the
-                lobby is completed. If you want to see this lobby in "My Lobbies" tab, use your
-                connected wallet address ({address}) as the master.
-              </p>
-            </div>
           </div>
 
           <div className="space-y-2">
@@ -1430,6 +1301,184 @@ function CreateLobby() {
   );
 }
 
+function MyLobbiesAndCreate() {
+  const refreshMyLobbiesRef = useRef<(() => void) | null>(null);
+
+  const handleCreateSuccess = () => {
+    if (refreshMyLobbiesRef.current) {
+      refreshMyLobbiesRef.current();
+    }
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      <div className="lg:col-span-3">
+        <MyLobbiesList refreshRef={refreshMyLobbiesRef} />
+      </div>
+      <div className="lg:col-span-2">
+        <CreateLobby onCreateSuccess={handleCreateSuccess} />
+      </div>
+    </div>
+  );
+}
+
+function MyLobbiesList({
+  refreshRef,
+}: {
+  refreshRef?: React.MutableRefObject<(() => void) | null>;
+}) {
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+
+  // Debug logging for contract parameters
+  console.log('Contract call parameters:', {
+    contractAddress: MENTORA_CONTRACT_ADDRESS,
+    chainId,
+    expectedChainId: arbitrumSepolia.id,
+    address,
+    isConnected,
+  });
+
+  // Fetch lobby IDs where user is master
+  const {
+    data: lobbyIds,
+    isLoading: isLoadingIds,
+    error: lobbyIdsError,
+    refetch: refetchMyLobbies,
+  } = useReadContract({
+    address: MENTORA_CONTRACT_ADDRESS,
+    abi: MENTORA_ABI,
+    functionName: 'getMyLobbiesAsMaster',
+    account: address, // Explicitly set the account for msg.sender
+    chainId: arbitrumSepolia.id,
+    query: {
+      enabled: isConnected && !!address,
+    },
+  });
+
+  // Expose the refetch function via ref
+  useEffect(() => {
+    if (refreshRef) {
+      refreshRef.current = refetchMyLobbies;
+    }
+  }, [refetchMyLobbies, refreshRef]);
+
+  // Debug logging
+  console.log('MyLobbies Debug:', {
+    address,
+    isConnected,
+    chainId,
+    expectedChainId: arbitrumSepolia.id,
+    contractAddress: MENTORA_CONTRACT_ADDRESS,
+    lobbyIds,
+    lobbyIdsType: typeof lobbyIds,
+    lobbyIdsLength: lobbyIds?.length,
+    isLoadingIds,
+    lobbyIdsError: lobbyIdsError?.message || lobbyIdsError,
+    rawLobbyIds: lobbyIds,
+  });
+
+  if (!isConnected) {
+    return (
+      <div className="bg-card p-6 rounded-lg border">
+        <h2 className="text-2xl font-bold mb-4">My Lobbies</h2>
+        <div className="flex items-center justify-center h-32">
+          <p className="text-muted-foreground">Please connect your wallet to view your lobbies</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (chainId !== arbitrumSepolia.id) {
+    return (
+      <div className="bg-card p-6 rounded-lg border">
+        <h2 className="text-2xl font-bold mb-4">My Lobbies</h2>
+        <div className="flex items-center justify-center h-32">
+          <div className="text-center space-y-2">
+            <p className="text-muted-foreground">Please switch to Arbitrum Sepolia network</p>
+            <p className="text-sm text-gray-500">
+              Current: {chainId}, Expected: {arbitrumSepolia.id}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (lobbyIdsError) {
+    return (
+      <div className="bg-card p-6 rounded-lg border">
+        <h2 className="text-2xl font-bold mb-4">My Lobbies</h2>
+        <div className="flex items-center justify-center h-32">
+          <div className="text-center space-y-2">
+            <p className="text-red-600">Error loading lobbies: {lobbyIdsError.message}</p>
+            <p className="text-sm text-gray-500">Check console for details</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoadingIds) {
+    return (
+      <div className="bg-card p-6 rounded-lg border">
+        <h2 className="text-2xl font-bold mb-4">My Lobbies</h2>
+        <div className="flex items-center justify-center h-32">
+          <div className="text-center space-y-2">
+            <p className="text-muted-foreground">Loading your lobbies...</p>
+            <p className="text-sm text-gray-500">Loading lobby IDs...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!lobbyIds || lobbyIds.length === 0) {
+    return (
+      <div className="bg-card p-6 rounded-lg border">
+        <h2 className="text-2xl font-bold mb-4">My Lobbies</h2>
+        <div className="flex flex-col items-center justify-center h-32 space-y-2">
+          <p className="text-muted-foreground">You don't have any lobbies as master yet</p>
+          <p className="text-sm text-muted-foreground">
+            Use the form on the right to create a lobby
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-card p-6 rounded-lg border">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h2 className="text-2xl font-bold">My Lobbies</h2>
+          <p className="text-muted-foreground mt-1">Lobbies where you are the master</p>
+        </div>
+        <p className="text-sm text-muted-foreground">Connected as: {address}</p>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>ID</TableHead>
+            <TableHead>Description</TableHead>
+            <TableHead>Participants</TableHead>
+            <TableHead>Amount per Participant</TableHead>
+            <TableHead>Total Deposited</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Action</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {lobbyIds.map((lobbyId) => (
+            <LobbyRow key={lobbyId.toString()} lobbyId={lobbyId} address={address || ''} />
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 export default function LobbiesPage() {
   return (
     <div>
@@ -1437,16 +1486,12 @@ export default function LobbiesPage() {
         <TabsList>
           <TabsTrigger value="my-lobbies">My Lobbies</TabsTrigger>
           <TabsTrigger value="joined-lobbies">Joined Lobbies</TabsTrigger>
-          <TabsTrigger value="create-lobby">Create Lobby</TabsTrigger>
         </TabsList>
         <TabsContent value="my-lobbies">
-          <MyLobbies />
+          <MyLobbiesAndCreate />
         </TabsContent>
         <TabsContent value="joined-lobbies">
           <JoinedLobbies />
-        </TabsContent>
-        <TabsContent value="create-lobby">
-          <CreateLobby />
         </TabsContent>
       </Tabs>
     </div>
