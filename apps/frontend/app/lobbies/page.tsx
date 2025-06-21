@@ -530,8 +530,296 @@ function MyLobbies() {
   );
 }
 
+function JoinLobby() {
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const [lobbyId, setLobbyId] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
+
+  // Fetch lobby info when lobbyId changes
+  const {
+    data: lobbyData,
+    isLoading: isLoadingLobby,
+    error: lobbyError,
+    refetch: refetchLobby,
+  } = useReadContract({
+    address: MENTORA_CONTRACT_ADDRESS,
+    abi: MENTORA_ABI,
+    functionName: 'getLobbyInfo',
+    args: [BigInt(lobbyId || '0')],
+    account: address as `0x${string}`,
+    chainId: arbitrumSepolia.id,
+    query: {
+      enabled: !!lobbyId && !!address && parseInt(lobbyId) > 0,
+    },
+  });
+
+  const { writeContract, data: hash, error, isPending } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  // Handle transaction states
+  useEffect(() => {
+    if (isPending) {
+      toast.loading('Joining lobby...', { id: 'join-lobby' });
+    }
+  }, [isPending]);
+
+  useEffect(() => {
+    if (isConfirming) {
+      toast.loading('Waiting for confirmation...', { id: 'join-lobby' });
+    }
+  }, [isConfirming]);
+
+  useEffect(() => {
+    if (isConfirmed) {
+      toast.success('Successfully joined the lobby!', { id: 'join-lobby' });
+      setIsJoining(false);
+      setLobbyId('');
+      // Refetch lobby data to show updated participant count
+      refetchLobby();
+    }
+  }, [isConfirmed, refetchLobby]);
+
+  useEffect(() => {
+    if (error) {
+      toast.error(`Error: ${error.message}`, { id: 'join-lobby' });
+      setIsJoining(false);
+    }
+  }, [error]);
+
+  const handleJoinLobby = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (!isConnected || !address) {
+      toast.error('Please connect your wallet');
+      return;
+    }
+
+    if (chainId !== arbitrumSepolia.id) {
+      toast.error('Please switch to Arbitrum Sepolia network');
+      return;
+    }
+
+    if (!lobbyId || parseInt(lobbyId) <= 0) {
+      toast.error('Please enter a valid lobby ID');
+      return;
+    }
+
+    if (!lobbyData) {
+      toast.error('Lobby not found or failed to load');
+      return;
+    }
+
+    const lobby = {
+      id: lobbyData[0],
+      creator: lobbyData[1],
+      master: lobbyData[2],
+      description: lobbyData[3],
+      amountPerParticipant: lobbyData[4],
+      maxParticipants: lobbyData[5],
+      currentParticipants: lobbyData[6],
+      state: BigInt(lobbyData[7]),
+      totalDeposited: lobbyData[8],
+    };
+
+    // Validation
+    if (Number(lobby.state) !== LobbyState.Created) {
+      toast.error('This lobby is not accepting new participants');
+      return;
+    }
+
+    if (lobby.currentParticipants >= lobby.maxParticipants) {
+      toast.error('This lobby is full');
+      return;
+    }
+
+    if (lobby.master.toLowerCase() === address.toLowerCase()) {
+      toast.error('You cannot join your own lobby as master');
+      return;
+    }
+
+    try {
+      setIsJoining(true);
+
+      writeContract({
+        address: MENTORA_CONTRACT_ADDRESS,
+        abi: MENTORA_ABI,
+        functionName: 'joinLobby',
+        args: [BigInt(lobbyId)],
+        value: lobby.amountPerParticipant,
+      });
+    } catch (err) {
+      console.error('Error joining lobby:', err);
+      toast.error('Failed to join lobby');
+      setIsJoining(false);
+    }
+  };
+
+  const getStateLabel = (state: bigint) => {
+    switch (Number(state)) {
+      case LobbyState.Created:
+        return 'Open for joining';
+      case LobbyState.Accepted:
+        return 'Accepted (closed)';
+      case LobbyState.Cancelled:
+        return 'Cancelled';
+      case LobbyState.Completed:
+        return 'Completed';
+      default:
+        return 'Unknown';
+    }
+  };
+
+  const getStateColor = (state: bigint) => {
+    switch (Number(state)) {
+      case LobbyState.Created:
+        return 'text-green-600';
+      case LobbyState.Accepted:
+        return 'text-blue-600';
+      case LobbyState.Cancelled:
+        return 'text-red-600';
+      case LobbyState.Completed:
+        return 'text-purple-600';
+      default:
+        return 'text-gray-600';
+    }
+  };
+
+  if (!isConnected) {
+    return (
+      <div className="flex items-center justify-center h-32">
+        <p className="text-muted-foreground">Please connect your wallet to join a lobby</p>
+      </div>
+    );
+  }
+
+  if (chainId !== arbitrumSepolia.id) {
+    return (
+      <div className="flex items-center justify-center h-32">
+        <p className="text-muted-foreground">Please switch to Arbitrum Sepolia network</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div className="bg-card p-6 rounded-lg border">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold">Join a Lobby</h2>
+          <p className="text-muted-foreground mt-2">Enter the lobby ID to view details and join</p>
+        </div>
+
+        <form onSubmit={handleJoinLobby} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="lobbyId">Lobby ID</Label>
+            <Input
+              id="lobbyId"
+              type="number"
+              min="1"
+              placeholder="Enter lobby ID (e.g., 1, 2, 3...)"
+              value={lobbyId}
+              onChange={(e) => setLobbyId(e.target.value)}
+              className="w-full"
+            />
+            <p className="text-sm text-muted-foreground">Ask the lobby creator for the lobby ID</p>
+          </div>
+
+          {lobbyId && parseInt(lobbyId) > 0 && (
+            <div className="border rounded-lg p-4 bg-muted/50">
+              <h3 className="font-semibold mb-3">Lobby Details</h3>
+
+              {isLoadingLobby ? (
+                <p className="text-muted-foreground">Loading lobby details...</p>
+              ) : !!lobbyError || !lobbyData ? (
+                <p className="text-red-600">Lobby not found or failed to load</p>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  {(() => {
+                    const lobby = {
+                      id: lobbyData[0],
+                      creator: lobbyData[1],
+                      master: lobbyData[2],
+                      description: lobbyData[3],
+                      amountPerParticipant: lobbyData[4],
+                      maxParticipants: lobbyData[5],
+                      currentParticipants: lobbyData[6],
+                      state: BigInt(lobbyData[7]),
+                      totalDeposited: lobbyData[8],
+                    };
+
+                    return (
+                      <>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <span className="font-medium">ID:</span> #{lobby.id.toString()}
+                          </div>
+                          <div>
+                            <span className="font-medium">Status:</span>{' '}
+                            <span className={`font-medium ${getStateColor(lobby.state)}`}>
+                              {getStateLabel(lobby.state)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="font-medium">Participants:</span>{' '}
+                            {lobby.currentParticipants.toString()}/
+                            {lobby.maxParticipants.toString()}
+                          </div>
+                          <div>
+                            <span className="font-medium">Cost to Join:</span>{' '}
+                            {formatEther(lobby.amountPerParticipant)} ETH
+                          </div>
+                        </div>
+                        <div className="mt-3">
+                          <span className="font-medium">Description:</span>
+                          <p className="mt-1 text-muted-foreground">{lobby.description}</p>
+                        </div>
+                        <div className="mt-3">
+                          <span className="font-medium">Master:</span>{' '}
+                          <span className="font-mono text-xs">{lobby.master}</span>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={
+              isJoining ||
+              isPending ||
+              isConfirming ||
+              !lobbyId ||
+              parseInt(lobbyId) <= 0 ||
+              isLoadingLobby ||
+              !!lobbyError ||
+              !lobbyData
+            }
+          >
+            {isJoining || isPending || isConfirming
+              ? 'Joining Lobby...'
+              : lobbyData && Number(lobbyData[7]) === LobbyState.Created
+                ? `Join Lobby (${formatEther(lobbyData[4])} ETH)`
+                : 'Join Lobby'}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function JoinedLobbies() {
-  return <div>Joined Lobbies</div>;
+  return (
+    <>
+      <JoinLobby />
+      <div>Joined Lobbies</div>
+    </>
+  );
 }
 
 function CreateLobby() {

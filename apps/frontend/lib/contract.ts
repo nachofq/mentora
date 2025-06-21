@@ -177,4 +177,17 @@ export const MENTORA_ABI = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
+  {
+    inputs: [
+      {
+        internalType: 'uint256',
+        name: 'lobbyId',
+        type: 'uint256',
+      },
+    ],
+    name: 'joinLobby',
+    outputs: [],
+    stateMutability: 'payable',
+    type: 'function',
+  },
 ] as const;
