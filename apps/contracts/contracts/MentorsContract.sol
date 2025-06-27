@@ -10,8 +10,8 @@ import {MentorsEvents} from "./events/MentorsEvents.sol";
  * @dev Community lobbies with payment system
  */
 
-contract Mentors is Ownable, Pausable, MentorsEvents {
-    mapping(address => MentorData) public Mentor;
+contract MentorsContract is Ownable, Pausable, MentorsEvents {
+    mapping(address => MentorData) public Mentors;
     mapping(address => bool) public isBlacklisted;
 
     struct MentorData{
@@ -38,9 +38,9 @@ contract Mentors is Ownable, Pausable, MentorsEvents {
         whenNotPaused
         external
     {
-        require(!Mentor[msg.sender].registered, UserRegistered());
+        require(!Mentors[msg.sender].registered, UserRegistered());
 
-        Mentor[msg.sender] = MentorData(true, true, 0, 0);
+        Mentors[msg.sender] = MentorData(true, true, 0, 0);
 
         emit LogCreateMentor(msg.sender);
     }
@@ -50,9 +50,9 @@ contract Mentors is Ownable, Pausable, MentorsEvents {
         whenNotPaused
         external
     {
-        require(Mentor[msg.sender].active != _flag, SetMentorActive());
+        require(Mentors[msg.sender].active != _flag, SetMentorActive());
 
-        Mentor[msg.sender].active = _flag;
+        Mentors[msg.sender].active = _flag;
 
         emit LogMentorSetActive(msg.sender, _flag);
     }
