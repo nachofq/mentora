@@ -26,15 +26,15 @@ contract MentorsContract is Ownable, Pausable, MentorsEvents {
     error SetMentorActive();
     error SetBlackListError();
 
-    modifier notBlacklisted {
-        require(!isBlacklisted[msg.sender], BlacklistedAddress());
+    modifier notBlacklisted(address _MentorAddress) {
+        require(!isBlacklisted[_MentorAddress], BlacklistedAddress());
         _;
     }
 
     constructor() Ownable(msg.sender) {}
 
     function createMentor()
-        notBlacklisted
+        notBlacklisted(msg.sender)
         whenNotPaused
         external
     {
@@ -46,7 +46,7 @@ contract MentorsContract is Ownable, Pausable, MentorsEvents {
     }
 
     function MentorSetActive(bool _flag)
-        notBlacklisted
+        notBlacklisted(msg.sender)
         whenNotPaused
         external
     {
@@ -75,27 +75,26 @@ contract MentorsContract is Ownable, Pausable, MentorsEvents {
         _unpause();
     }
 
-}
-
-/*
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/GSN/Context.sol";
-
-contract MyContract is Context, AccessControl {
-
-    using SafeERC20 for IERC20;
-
-    bytes32 public constant WITHDRAWER_ROLE = keccak256("WITHDRAWER_ROLE");
-
-    constructor() public  {
-        _setupRole(WITHDRAWER_ROLE, _msgSender());
+    function isValidMentor(address _MentorAddress)
+        external
+        view
+        returns(bool)
+    {
+        return 
+            Mentors[_MentorAddress].registered && 
+            Mentors[_MentorAddress].active && 
+            !isBlacklisted[_MentorAddress];
     }
 
-    function withdraw(IERC20 token, address recipient, uint256 amount) public {
-        require(hasRole(WITHDRAWER_ROLE, _msgSender()), "MyContract: must have withdrawer role to withdraw");
-        token.safeTransfer(recipient, amount);
+    function getMentorData(address _MentorAddress)
+        external
+        view
+        returns(bool registered, bool active, uint16 sessions, uint8 score)
+    {
+        return (
+            Mentors[_MentorAddress].registered,
+            Mentors[_MentorAddress].active,
+            Mentors[_MentorAddress].sessions,
+            Mentors[_MentorAddress].score);
     }
 }
-*/
