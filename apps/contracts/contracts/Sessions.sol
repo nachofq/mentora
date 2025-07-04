@@ -15,23 +15,34 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
 
     mapping(uint256 => Session) public sessions;
 
+    uint256 constant PROPORTION = 10000;
+
     uint256 public _sessionCounter;
     uint256 public _totalDeposited;
+    uint8 public fee;
     
     MentorsContract mentors;
 
+    error SessionError();
     error WithdrawError();
+    error SessionIsFull();
+    error SessionNotOpen();
     error MentorNotValid();
+    error IncorrectAmount();
     error IncorrectDeposit();
+    error IsPrivateSession();
     error IncorrectStartTime();
     error MissingCretorAddress();
+    error AddressIsParticipant();
     error NotEnoughParticipants();
     error IncorrectMaxParticipants();
     error IncorrectParticipantsLength();
     
-    constructor(MentorsContract _mentors, IERC20 _token) Ownable(msg.sender){
+    
+    constructor(MentorsContract _mentors, IERC20 _token, uint8 _fee) Ownable(msg.sender){
         mentors = _mentors;
         token = _token;
+        fee = _fee; // 500 --> 5%
     }
 
     // Sesiones No publicable == "No publicable en el marketplace"
@@ -46,7 +57,7 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         uint256 _sessionStartTime,
         uint256 _minAmountPerParticipant,
         uint256 _amount,
-        bool _privateSession,
+        bool _isPrivate,
         bool _marketplace
     ) external returns (uint256 sessionId) 
     {
@@ -61,8 +72,8 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         sessionId = _sessionCounter++;
         Session storage newSession = sessions[sessionId];
         
-        //address[] memory participants = new address[](_maxParticipants);
-        if (_privateSession) {
+        // If private then we need to deposit the entire session amount
+        if (_isPrivate) {
             require(participants.length == _maxParticipants, IncorrectParticipantsLength());
             require(_amount >= _minAmountPerParticipant * participants.length);
         }
@@ -78,7 +89,7 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         newSession.participantDeposits[msg.sender] = _amount;
         newSession.state = SessionState.Created;
         newSession.sessionDeposited += _amount;
-        newSession.privateSession = _privateSession;
+        newSession.isPrivateSession = _isPrivate;
         newSession.marketplace = _marketplace;
 
         token.safeTransferFrom(msg.sender, address(this), _amount);
@@ -86,11 +97,7 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         emit LogCreateSession(msg.sender, _mentorAddress, _sessionStartTime, sessionId);
     }
 
-    error SessionNotOpen();
-    error SessionIsFull();
-    error AddressIsParticipant();
-    error IncorrectAmount();
-    // Placeholder functions for interface compliance
+    // If the session is public, participants must join the session.
     function joinSession(uint256 _sessionId, uint _amount) external {
         Session storage session = sessions[_sessionId];
 
@@ -130,8 +137,10 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         );
     } 
 
-    function completeLobby(uint256 lobbyId) external {
-        Session storage session = sessions[lobbyId];
+    function completeSession(uint256 _sessionId) 
+        external 
+    {
+        Session storage session = sessions[_sessionId];
 
         // Validations
         //require(lobby.id != 0, "Lobby does not exist");
@@ -139,8 +148,8 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
             session.state == SessionState.Accepted,
             "Lobby must be accepted to be completed"
         );
-        require(msg.sender == session.mentor, "Only lobby master can complete");
-        //require(session.totalDeposited > 0, "No funds to transfer");
+        require(msg.sender == session.mentor, "Only session mentor can complete");
+        require(session.sessionDeposited > 0, "No funds to transfer");
 
         uint256 totalPayment = session.sessionDeposited;
 
@@ -153,24 +162,91 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
             address participant = session.participants[i];
             session.participantDeposits[participant] = 0;
         }
-
-        // Transfer all funds to the master
+        // Get app fees.
+        totalPayment = totalPayment - ((totalPayment * fee) / PROPORTION);
+        // Transfer all funds to the mentor
         token.safeTransfer(address(this), totalPayment);
         
-        //emit MentoraEvents.LobbyCompleted(lobbyId, lobby.master, totalPayment);
+        emit LogSessionCompleted(_sessionId, session.mentor, totalPayment);
     }
-
-
 
     function withdraw(IERC20 _token, address recipient, uint256 amount) 
         onlyOwner
         public 
     {
-        require(amount > getContractBalance(_token), WithdrawError());
+        uint256 mentoraFees = getContractBalance(_token) - _totalDeposited;
+        require(amount <= mentoraFees, WithdrawError());
         _token.safeTransfer(recipient, amount);
     }
+    
+    // ********** View Functions **********
+    function getSessionInfo(
+        uint256 _sessionId
+    )
+        external
+        view
+        returns (
+            address creator,
+            address mentor,
+            uint256 startTime,
+            uint256 endTime,
+            uint256 amountPerParticipant,
+            uint256 maxParticipants,
+            address[] memory paparticipants,
+            SessionState state,
+            uint256 sessionDeposit,
+            bool isPrivateSession,
+            bool marketplace
+        )
+    {
+        require(
+            _sessionId > 0 && _sessionId <= _sessionCounter,
+            SessionError()
+        );
 
-    function getContractBalance(IERC20 _token) public view returns(uint256){
+        Session storage session = sessions[_sessionId];
+
+        return (
+            session.creator,
+            session.mentor,
+            session.startTime,
+            session.endTime,
+            session.amountPerParticipant,
+            session.maxParticipants,
+            session.participants,
+            session.state,
+            session.sessionDeposited,
+            session.isPrivateSession,
+            session.marketplace
+        );
+    }
+
+    // Do I need this one?
+    function getSessionParticipants(uint256 _sessionId) 
+        external 
+        view 
+        returns (address[] memory)
+    {
+        Session storage session = sessions[_sessionId];
+
+        return session.participants;
+    }
+
+    function getParticipantDeposit(
+        uint256 _sessionId,
+        address participant
+    ) external view returns (uint256){
+        Session storage session = sessions[_sessionId];
+
+        return session.participantDeposits[participant];
+
+    }
+
+    function getContractBalance(IERC20 _token) 
+        public 
+        view 
+        returns(uint256)
+    {
         return _token.balanceOf(address(this));
     }
 

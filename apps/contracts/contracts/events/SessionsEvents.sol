@@ -13,4 +13,6 @@ abstract contract SessionsEvents {
         uint256 _amount,
         uint256 _currentParticipants
     );
+
+    event LogSessionCompleted(uint indexed _sessionId, address indexed _mentor, uint256 totalPayment);
 }

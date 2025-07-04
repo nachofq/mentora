@@ -30,7 +30,7 @@ interface ISessions {
         mapping(address => uint256) participantDeposits; // Amount each participant deposited
         SessionState state; // Current state of the lobby
         uint256 sessionDeposited; // Total amount deposited
-        bool privateSession; // default false;
+        bool isPrivateSession; // default false;
         bool marketplace; // default false;
     }
 
@@ -45,37 +45,31 @@ interface ISessions {
         bool _marketplace
     ) external returns (uint256 sessionId);
 
-    /*function joinSession(uint256 sessionId) external payable;
-
-    function acceptSession(uint256 sessionId) external;
-
-    function cancelSession(uint256 sessionId) external;
-
-    function abandonSession(uint256 sessionId) external;
-
-    function completeSession(uint256 sessionId) external;
-
-    // View functions
     function getSessionInfo(
         uint256 sessionId
     )
         external
         view
         returns (
-            uint256 id,
-            address creator,
+             address creator,
             address mentor,
             uint256 startTime,
             uint256 endTime,
             uint256 amountPerParticipant,
             uint256 maxParticipants,
-            uint256 currentParticipants,
+            address[] memory paparticipants,
             SessionState state,
-            uint256 totalDeposited
+            uint256 sessionDeposit,
+            bool isPrivateSession,
+            bool marketplace
         );
 
-    function getParticipants(
-        uint256 lobbyId
+    function joinSession(uint256 _sessionId, uint _amount) external;
+
+    function completeSession(uint256 _sessionId) external;
+
+    function getSessionParticipants(
+        uint256 _sessionId
     ) external view returns (address[] memory);
 
     function getParticipantDeposit(
@@ -83,5 +77,11 @@ interface ISessions {
         address participant
     ) external view returns (uint256);
 
-    function getTotalLobbies() external view returns (uint256);*/
+    
+
+    /*function acceptSession(uint256 sessionId) external;
+
+    function cancelSession(uint256 sessionId) external;
+
+    function abandonSession(uint256 sessionId) external; */
 }
