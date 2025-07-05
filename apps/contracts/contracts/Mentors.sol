@@ -10,8 +10,8 @@ import {MentorsEvents} from "./events/MentorsEvents.sol";
  * @dev Community lobbies with payment system
  */
 
-contract MentorsContract is Ownable, Pausable, MentorsEvents {
-    mapping(address => MentorData) public Mentors;
+contract Mentors is Ownable, Pausable, MentorsEvents {
+    mapping(address => MentorData) public mentors;
     mapping(address => bool) public isBlacklisted;
 
     struct MentorData{
@@ -26,8 +26,8 @@ contract MentorsContract is Ownable, Pausable, MentorsEvents {
     error SetMentorActive();
     error SetBlackListError();
 
-    modifier notBlacklisted(address _MentorAddress) {
-        require(!isBlacklisted[_MentorAddress], BlacklistedAddress());
+    modifier notBlacklisted(address _mentorAddress) {
+        require(!isBlacklisted[_mentorAddress], BlacklistedAddress());
         _;
     }
 
@@ -38,9 +38,9 @@ contract MentorsContract is Ownable, Pausable, MentorsEvents {
         whenNotPaused
         external
     {
-        require(!Mentors[msg.sender].registered, UserRegistered());
+        require(!mentors[msg.sender].registered, UserRegistered());
 
-        Mentors[msg.sender] = MentorData(true, true, 0, 0);
+        mentors[msg.sender] = MentorData(true, true, 0, 0);
 
         emit LogCreateMentor(msg.sender);
     }
@@ -50,21 +50,21 @@ contract MentorsContract is Ownable, Pausable, MentorsEvents {
         whenNotPaused
         external
     {
-        require(Mentors[msg.sender].active != _flag, SetMentorActive());
+        require(mentors[msg.sender].active != _flag, SetMentorActive());
 
-        Mentors[msg.sender].active = _flag;
+        mentors[msg.sender].active = _flag;
 
         emit LogMentorSetActive(msg.sender, _flag);
     }
 
-    function setBlacklist(address _MentorAddress, bool _flag) 
+    function setBlacklist(address _mentorAddress, bool _flag) 
         external
         onlyOwner
     {
-        require(isBlacklisted[_MentorAddress] != _flag, SetBlackListError());
-        isBlacklisted[_MentorAddress] = _flag;
+        require(isBlacklisted[_mentorAddress] != _flag, SetBlackListError());
+        isBlacklisted[_mentorAddress] = _flag;
 
-        emit LogSetBlacklist(msg.sender, _MentorAddress, _flag);
+        emit LogSetBlacklist(msg.sender, _mentorAddress, _flag);
     }
 
     function pause() public onlyOwner {
@@ -75,26 +75,26 @@ contract MentorsContract is Ownable, Pausable, MentorsEvents {
         _unpause();
     }
 
-    function isValidMentor(address _MentorAddress)
+    function isValidMentor(address _mentorAddress)
         external
         view
         returns(bool)
     {
         return 
-            Mentors[_MentorAddress].registered && 
-            Mentors[_MentorAddress].active && 
-            !isBlacklisted[_MentorAddress];
+            mentors[_mentorAddress].registered && 
+            mentors[_mentorAddress].active && 
+            !isBlacklisted[_mentorAddress];
     }
 
-    function getMentorData(address _MentorAddress)
+    function getMentorData(address _mentorAddress)
         external
         view
         returns(bool registered, bool active, uint16 sessions, uint8 score)
     {
         return (
-            Mentors[_MentorAddress].registered,
-            Mentors[_MentorAddress].active,
-            Mentors[_MentorAddress].sessions,
-            Mentors[_MentorAddress].score);
+            mentors[_mentorAddress].registered,
+            mentors[_mentorAddress].active,
+            mentors[_mentorAddress].sessions,
+            mentors[_mentorAddress].score);
     }
 }

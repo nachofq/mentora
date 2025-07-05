@@ -1,36 +1,42 @@
-import { loadFixture } from '@nomicfoundation/hardhat-toolbox/network-helpers';
-import { expect } from 'chai';
-import hre from 'hardhat';
+import {
+  time,
+  loadFixture,
+} from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
+import { expect } from "chai";
+import hre from "hardhat";
 
-describe('Mentora - Deployment', function () {
-  async function deployMentora() {
-    const [owner, creator, master, participant1, participant2] =
-      await hre.ethers.getSigners();
-    const Mentora = await hre.ethers.getContractFactory('Mentora');
-    const mentora = await Mentora.deploy();
-    return { mentora, owner, creator, master, participant1, participant2 };
+describe("Lock", function () {
+  
+  async function deploySessions() {
+    // Contracts are deployed using the first signer/account by default
+    const [
+      owner, 
+      mentor, 
+      creator, 
+      participantOne, 
+      ParticipantTwo
+    ] = await hre.ethers.getSigners();
+
+    const Mentors = await hre.ethers.getContractFactory("Mentors");
+    const mentors = await Mentors.deploy();
+    
+    const Token = await hre.ethers.getContractFactory("MockERC20");
+    const token = await Token.deploy("USDC", "USDC", 18, 1000);
+
+    // MentorsContract _mentors, IERC20 _token, uint8 _fee
+    const Sessions = await hre.ethers.getContractFactory("Sessions");
+    const sessions = await Sessions.deploy(mentors.target, token.target, 500);
+
+    return { sessions, owner, mentor, creator, participantOne, ParticipantTwo};
   }
 
-  describe('Deployment', function () {
-    it('Should set the right owner', async function () {
-      const { mentora, owner } = await loadFixture(deployMentora);
-      expect(await mentora.owner()).to.equal(owner.address);
-    });
+  describe("Deployment", function () {
 
-    it('Should initialize with zero lobbies', async function () {
-      const { mentora } = await loadFixture(deployMentora);
-      expect(await mentora.getTotalLobbies()).to.equal(0);
-    });
+    it("Should set the right owner", async function () {
+      const { sessions, owner } = await loadFixture(deploySessions);
 
-    it('Should deploy with correct initial state', async function () {
-      const { mentora } = await loadFixture(deployMentora);
-
-      // Check that the contract is deployed and has code
-      const code = await hre.ethers.provider.getCode(mentora.target);
-      expect(code).to.not.equal('0x');
-
-      // Check that the contract address is valid
-      expect(mentora.target).to.not.equal(hre.ethers.ZeroAddress);
+      expect(await sessions.owner()).to.equal(owner.address);
     });
   });
 });

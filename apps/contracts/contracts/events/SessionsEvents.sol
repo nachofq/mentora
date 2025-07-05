@@ -15,4 +15,6 @@ abstract contract SessionsEvents {
     );
 
     event LogSessionCompleted(uint indexed _sessionId, address indexed _mentor, uint256 totalPayment);
+
+    event LogWithdraw(address indexed _sender, uint256 _mentoraFees);
 }

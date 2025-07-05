@@ -6,7 +6,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {SessionsEvents} from "./events/SessionsEvents.sol";
 import {ISessions} from "./interfaces/ISessions.sol";
-import {MentorsContract} from "./MentorsContract.sol";
+import {Mentors} from "./Mentors.sol";
 
 contract Participants is Ownable, Pausable{
     

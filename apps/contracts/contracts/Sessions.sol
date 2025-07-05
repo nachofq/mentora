@@ -7,7 +7,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {SessionsEvents} from "./events/SessionsEvents.sol";
 import {ISessions} from "./interfaces/ISessions.sol";
-import {MentorsContract} from "./MentorsContract.sol";
+import {Mentors} from "./Mentors.sol";
 
 contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
     using SafeERC20 for IERC20;
@@ -19,9 +19,9 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
 
     uint256 public _sessionCounter;
     uint256 public _totalDeposited;
-    uint8 public fee;
+    uint256 public fee;
     
-    MentorsContract mentors;
+    Mentors mentors;
 
     error SessionError();
     error WithdrawError();
@@ -39,7 +39,7 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
     error IncorrectParticipantsLength();
     
     
-    constructor(MentorsContract _mentors, IERC20 _token, uint8 _fee) Ownable(msg.sender){
+    constructor(Mentors _mentors, IERC20 _token, uint256 _fee) Ownable(msg.sender){
         mentors = _mentors;
         token = _token;
         fee = _fee; // 500 --> 5%
@@ -177,6 +177,8 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         uint256 mentoraFees = getContractBalance(_token) - _totalDeposited;
         require(amount <= mentoraFees, WithdrawError());
         _token.safeTransfer(recipient, amount);
+
+        emit LogWithdraw(msg.sender, mentoraFees);
     }
     
     // ********** View Functions **********
