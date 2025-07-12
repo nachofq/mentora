@@ -30,8 +30,8 @@ export default function SessionsPage() {
     maxParticipants: 1,
     participants: [],
     sessionStartTime: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
-    minAmountPerParticipant: '0.001',
-    amount: '0.001',
+    minAmountPerParticipant: '0.0001',
+    amount: '0.0001',
     isPrivate: false,
     marketplace: false,
   });
@@ -42,6 +42,18 @@ export default function SessionsPage() {
     abi: MOCK_ERC20_ABI,
     functionName: 'balanceOf',
     args: [address!],
+    chainId: arbitrumSepolia.id,
+    query: {
+      enabled: !!address,
+    },
+  });
+
+  // Read token allowance
+  const { data: tokenAllowance } = useReadContract({
+    address: CONTRACT_ADDRESSES.MOCK_ERC20,
+    abi: MOCK_ERC20_ABI,
+    functionName: 'allowance',
+    args: [address!, CONTRACT_ADDRESSES.SESSIONS],
     chainId: arbitrumSepolia.id,
     query: {
       enabled: !!address,
@@ -91,6 +103,13 @@ export default function SessionsPage() {
     hash: createHash,
   });
 
+  // Mint tokens transaction
+  const { writeContract: mintTokens, data: mintHash, isPending: mintPending } = useWriteContract();
+
+  const { isLoading: mintConfirming, isSuccess: mintConfirmed } = useWaitForTransactionReceipt({
+    hash: mintHash,
+  });
+
   // Handle transaction states
   useEffect(() => {
     if (approvePending) {
@@ -131,14 +150,34 @@ export default function SessionsPage() {
         maxParticipants: 1,
         participants: [],
         sessionStartTime: Math.floor(Date.now() / 1000) + 3600,
-        minAmountPerParticipant: '0.001',
-        amount: '0.001',
+        minAmountPerParticipant: '0.0001',
+        amount: '0.0001',
         isPrivate: false,
         marketplace: false,
       });
       refetchTokenBalance();
     }
   }, [createConfirmed, refetchTokenBalance]);
+
+  // Handle mint transaction states
+  useEffect(() => {
+    if (mintPending) {
+      toast.loading('Minting tokens...', { id: 'mint-tokens' });
+    }
+  }, [mintPending]);
+
+  useEffect(() => {
+    if (mintConfirming) {
+      toast.loading('Waiting for mint confirmation...', { id: 'mint-tokens' });
+    }
+  }, [mintConfirming]);
+
+  useEffect(() => {
+    if (mintConfirmed) {
+      toast.success('Tokens minted successfully!', { id: 'mint-tokens' });
+      refetchTokenBalance();
+    }
+  }, [mintConfirmed, refetchTokenBalance]);
 
   const handleApproveTokens = async () => {
     if (!address) {
@@ -172,8 +211,72 @@ export default function SessionsPage() {
       return;
     }
 
+    // Validate mentor address format
+    if (
+      !sessionFormData.mentorAddress.startsWith('0x') ||
+      sessionFormData.mentorAddress.length !== 42
+    ) {
+      toast.error('Please enter a valid mentor address');
+      return;
+    }
+
+    // Validate session time is in the future
+    const currentTime = Math.floor(Date.now() / 1000);
+    if (sessionFormData.sessionStartTime <= currentTime) {
+      toast.error('Session start time must be in the future');
+      return;
+    }
+
+    // Validate amounts
+    try {
+      const minAmount = parseFloat(sessionFormData.minAmountPerParticipant);
+      const totalAmount = parseFloat(sessionFormData.amount);
+
+      if (minAmount <= 0 || totalAmount <= 0) {
+        toast.error('Amounts must be greater than 0');
+        return;
+      }
+
+      if (totalAmount > 10) {
+        toast.error('Amount seems too large. Please use smaller amounts for testing.');
+        return;
+      }
+
+      // Check token balance
+      const requiredAmount = parseEther(sessionFormData.amount);
+      if (tokenBalance && tokenBalance < requiredAmount) {
+        toast.error(
+          `Insufficient token balance. Required: ${sessionFormData.amount}, Available: ${formatEther(tokenBalance)}`,
+        );
+        return;
+      }
+
+      // Check token allowance
+      if (tokenAllowance && tokenAllowance < requiredAmount) {
+        toast.error(
+          `Insufficient token allowance. Please approve tokens first. Required: ${sessionFormData.amount}, Approved: ${formatEther(tokenAllowance)}`,
+        );
+        return;
+      }
+    } catch (error) {
+      toast.error('Invalid amount format');
+      return;
+    }
+
     try {
       const params = sessionFormToContractParams(sessionFormData);
+
+      // Debug logging
+      console.log('Creating session with params:', {
+        mentorAddress: params[0],
+        maxParticipants: params[1].toString(),
+        participants: params[2],
+        sessionStartTime: params[3].toString(),
+        minAmountPerParticipant: params[4].toString(),
+        amount: params[5].toString(),
+        isPrivate: params[6],
+        marketplace: params[7],
+      });
 
       createSession({
         address: CONTRACT_ADDRESSES.SESSIONS,
@@ -185,6 +288,27 @@ export default function SessionsPage() {
     } catch (error) {
       console.error('Error creating session:', error);
       toast.error('Failed to create session');
+    }
+  };
+
+  const handleMintTokens = async () => {
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      const mintAmount = parseEther('10'); // Mint 10 tokens
+      mintTokens({
+        address: CONTRACT_ADDRESSES.MOCK_ERC20,
+        abi: MOCK_ERC20_ABI,
+        functionName: 'mint',
+        args: [address, mintAmount],
+        chainId: arbitrumSepolia.id,
+      });
+    } catch (error) {
+      console.error('Error minting tokens:', error);
+      toast.error('Failed to mint tokens');
     }
   };
 
@@ -306,7 +430,7 @@ export default function SessionsPage() {
                     <Input
                       id="amount-per-participant"
                       type="number"
-                      step="0.001"
+                      step="0.00001"
                       value={sessionFormData.minAmountPerParticipant}
                       onChange={(e) => handleInputChange('minAmountPerParticipant', e.target.value)}
                     />
@@ -317,7 +441,7 @@ export default function SessionsPage() {
                     <Input
                       id="total-amount"
                       type="number"
-                      step="0.001"
+                      step="0.00001"
                       value={sessionFormData.amount}
                       onChange={(e) => handleInputChange('amount', e.target.value)}
                     />
@@ -366,9 +490,19 @@ export default function SessionsPage() {
                         {tokenBalance ? formatEther(tokenBalance) : '0'} tokens
                       </p>
                     </div>
-                    <Badge variant="outline">
-                      {tokenBalance ? formatEther(tokenBalance) : '0'} MOCK
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">
+                        {tokenBalance ? formatEther(tokenBalance) : '0'} MOCK
+                      </Badge>
+                      <Button
+                        onClick={handleMintTokens}
+                        disabled={mintPending || mintConfirming}
+                        variant="outline"
+                        size="sm"
+                      >
+                        {mintPending || mintConfirming ? 'Minting...' : 'Mint 10 Tokens'}
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="flex gap-2">

@@ -1331,7 +1331,7 @@ function CreateLobby({ onCreateSuccess }: { onCreateSuccess?: () => void }) {
               id="amountPerParticipant"
               type="number"
               step="0.00000000001"
-              placeholder="0.001"
+              placeholder="0.0001"
               value={formData.amountPerParticipant}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 handleInputChange('amountPerParticipant', e.target.value)

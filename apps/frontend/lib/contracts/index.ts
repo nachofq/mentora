@@ -3,6 +3,7 @@ export { CONTRACT_ADDRESSES, LEGACY_CONTRACT_ADDRESS } from './addresses';
 export { MENTORS_ABI } from './abis/mentors';
 export { SESSIONS_ABI } from './abis/sessions';
 export { MOCK_ERC20_ABI } from './abis/mockERC20';
+import { parseEther } from 'viem';
 
 // Contract types and enums
 export enum SessionState {
@@ -49,14 +50,14 @@ export type CreateSessionFormData = {
 // Helper function to convert form data to contract parameters
 export function sessionFormToContractParams(
   data: CreateSessionFormData,
-): [string, bigint, string[], bigint, bigint, bigint, boolean, boolean] {
+): [`0x${string}`, bigint, `0x${string}`[], bigint, bigint, bigint, boolean, boolean] {
   return [
-    data.mentorAddress,
+    data.mentorAddress as `0x${string}`,
     BigInt(data.maxParticipants),
-    data.participants,
+    data.participants as `0x${string}`[],
     BigInt(data.sessionStartTime),
-    BigInt(data.minAmountPerParticipant),
-    BigInt(data.amount),
+    parseEther(data.minAmountPerParticipant),
+    parseEther(data.amount),
     data.isPrivate,
     data.marketplace,
   ];
