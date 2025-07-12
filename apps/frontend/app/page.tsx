@@ -221,6 +221,7 @@ export default function HomePage() {
                     <li>• Manage mentor blacklist</li>
                     <li>• Pause/unpause contracts</li>
                     <li>• Withdraw platform fees</li>
+                    <li>• Mint test tokens</li>
                     <li>• View contract statistics</li>
                   </ul>
                 </div>

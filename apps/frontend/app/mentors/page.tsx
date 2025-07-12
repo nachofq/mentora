@@ -38,6 +38,7 @@ export default function MentorsPage() {
     writeContract: createMentor,
     data: createHash,
     isPending: createPending,
+    error: createError,
   } = useWriteContract();
 
   const { isLoading: createConfirming, isSuccess: createConfirmed } = useWaitForTransactionReceipt({
@@ -49,6 +50,7 @@ export default function MentorsPage() {
     writeContract: setActiveStatus,
     data: setActiveHash,
     isPending: setActivePending,
+    error: setActiveError,
   } = useWriteContract();
 
   const { isLoading: setActiveConfirming, isSuccess: setActiveConfirmed } =
@@ -88,6 +90,13 @@ export default function MentorsPage() {
     }
   }, [createConfirmed, refetchMentorData]);
 
+  // Handle create mentor errors
+  useEffect(() => {
+    if (createError) {
+      toast.error('Mentor profile creation failed', { id: 'create-mentor' });
+    }
+  }, [createError]);
+
   // Handle set active status transaction states
   useEffect(() => {
     if (setActivePending) {
@@ -107,6 +116,13 @@ export default function MentorsPage() {
       refetchMentorData();
     }
   }, [setActiveConfirmed, refetchMentorData]);
+
+  // Handle set active status errors
+  useEffect(() => {
+    if (setActiveError) {
+      toast.error('Mentor status update failed', { id: 'set-active' });
+    }
+  }, [setActiveError]);
 
   const handleCreateMentor = async () => {
     if (!address) {

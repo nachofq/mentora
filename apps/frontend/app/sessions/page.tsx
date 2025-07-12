@@ -11,6 +11,14 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { toast } from 'react-hot-toast';
 import {
   CONTRACT_ADDRESSES,
@@ -19,12 +27,19 @@ import {
   MENTORS_ABI,
   SessionState,
   type CreateSessionFormData,
+  type SessionInfo,
   sessionFormToContractParams,
 } from '@/lib/contracts';
 import { formatEther, parseEther } from 'viem';
 
 export default function SessionsPage() {
   const { address, isConnected } = useAccount();
+
+  // Extended session type for UI display
+  type SessionDisplay = SessionInfo & {
+    id: number;
+  };
+
   const [sessionFormData, setSessionFormData] = useState<CreateSessionFormData>({
     mentorAddress: '',
     maxParticipants: 1,
@@ -35,6 +50,11 @@ export default function SessionsPage() {
     isPrivate: false,
     marketplace: false,
   });
+
+  const [sessions, setSessions] = useState<SessionDisplay[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [joinSessionId, setJoinSessionId] = useState('');
+  const [viewSession, setViewSession] = useState<SessionDisplay | null>(null);
 
   // Read token balance
   const { data: tokenBalance, refetch: refetchTokenBalance } = useReadContract({
@@ -80,11 +100,127 @@ export default function SessionsPage() {
     },
   });
 
+  // Read first few sessions individually (up to 5 sessions for now)
+  const session1 = useReadContract({
+    address: CONTRACT_ADDRESSES.SESSIONS,
+    abi: SESSIONS_ABI,
+    functionName: 'getSessionInfo',
+    args: [BigInt(1)],
+    chainId: arbitrumSepolia.id,
+    query: {
+      enabled: !!sessionCounter && sessionCounter >= 1n,
+    },
+  });
+
+  const session2 = useReadContract({
+    address: CONTRACT_ADDRESSES.SESSIONS,
+    abi: SESSIONS_ABI,
+    functionName: 'getSessionInfo',
+    args: [BigInt(2)],
+    chainId: arbitrumSepolia.id,
+    query: {
+      enabled: !!sessionCounter && sessionCounter >= 2n,
+    },
+  });
+
+  const session3 = useReadContract({
+    address: CONTRACT_ADDRESSES.SESSIONS,
+    abi: SESSIONS_ABI,
+    functionName: 'getSessionInfo',
+    args: [BigInt(3)],
+    chainId: arbitrumSepolia.id,
+    query: {
+      enabled: !!sessionCounter && sessionCounter >= 3n,
+    },
+  });
+
+  // Load sessions from contract
+  const loadSessions = async () => {
+    console.log('loadSessions called, sessionCounter:', sessionCounter);
+
+    if (!sessionCounter || sessionCounter === 0n) {
+      console.log('No sessions to load');
+      setSessions([]);
+      return;
+    }
+
+    setLoadingSessions(true);
+
+    const sessionsData: SessionDisplay[] = [];
+
+    // Process each session query
+    const sessionQueries = [session1, session2, session3];
+
+    sessionQueries.forEach((query, index) => {
+      console.log(`Session ${index + 1} query:`, query.data, query.isLoading, query.error);
+      if (query.data) {
+        const sessionInfo = query.data;
+        sessionsData.push({
+          id: index + 1,
+          creator: sessionInfo[0],
+          mentor: sessionInfo[1],
+          startTime: sessionInfo[2],
+          endTime: sessionInfo[3],
+          amountPerParticipant: sessionInfo[4],
+          maxParticipants: sessionInfo[5],
+          participants: [...sessionInfo[6]],
+          state: sessionInfo[7],
+          sessionDeposit: sessionInfo[8],
+          isPrivateSession: sessionInfo[9],
+          marketplace: sessionInfo[10],
+        });
+      }
+    });
+
+    setSessions(sessionsData);
+    setLoadingSessions(false);
+
+    console.log(`Loaded ${sessionsData.length} out of ${sessionCounter} sessions`, sessionsData);
+  };
+
+  // Load sessions when sessionCounter changes or session queries complete
+  useEffect(() => {
+    if (sessionCounter !== undefined) {
+      loadSessions();
+    }
+  }, [sessionCounter, session1.data, session2.data, session3.data]);
+
+  // Filter sessions for different tabs
+  const allSessions = sessions; // Show all sessions in Browse section
+
+  const mySessions = sessions.filter(
+    (session) =>
+      address &&
+      (session.creator.toLowerCase() === address.toLowerCase() ||
+        session.mentor.toLowerCase() === address.toLowerCase() ||
+        session.participants.some((p: string) => p.toLowerCase() === address.toLowerCase())),
+  );
+
+  const handleJoinSessionById = async () => {
+    if (!joinSessionId) {
+      toast.error('Please enter a session ID');
+      return;
+    }
+
+    // TODO: Implement join session logic
+    toast.success(`Joining session ${joinSessionId} - functionality to be implemented`);
+    setJoinSessionId('');
+  };
+
+  const handleViewSession = (session: SessionDisplay) => {
+    setViewSession(session);
+  };
+
+  const closeViewSession = () => {
+    setViewSession(null);
+  };
+
   // Token approve transaction
   const {
     writeContract: approveToken,
     data: approveHash,
     isPending: approvePending,
+    error: approveError,
   } = useWriteContract();
 
   const { isLoading: approveConfirming, isSuccess: approveConfirmed } =
@@ -97,17 +233,11 @@ export default function SessionsPage() {
     writeContract: createSession,
     data: createHash,
     isPending: createPending,
+    error: createError,
   } = useWriteContract();
 
   const { isLoading: createConfirming, isSuccess: createConfirmed } = useWaitForTransactionReceipt({
     hash: createHash,
-  });
-
-  // Mint tokens transaction
-  const { writeContract: mintTokens, data: mintHash, isPending: mintPending } = useWriteContract();
-
-  const { isLoading: mintConfirming, isSuccess: mintConfirmed } = useWaitForTransactionReceipt({
-    hash: mintHash,
   });
 
   // Handle transaction states
@@ -128,6 +258,13 @@ export default function SessionsPage() {
       toast.success('Tokens approved successfully!', { id: 'approve-token' });
     }
   }, [approveConfirmed]);
+
+  // Handle approve errors
+  useEffect(() => {
+    if (approveError) {
+      toast.error('Token approval failed', { id: 'approve-token' });
+    }
+  }, [approveError]);
 
   useEffect(() => {
     if (createPending) {
@@ -159,25 +296,12 @@ export default function SessionsPage() {
     }
   }, [createConfirmed, refetchTokenBalance]);
 
-  // Handle mint transaction states
+  // Handle create session errors
   useEffect(() => {
-    if (mintPending) {
-      toast.loading('Minting tokens...', { id: 'mint-tokens' });
+    if (createError) {
+      toast.error('Session creation failed', { id: 'create-session' });
     }
-  }, [mintPending]);
-
-  useEffect(() => {
-    if (mintConfirming) {
-      toast.loading('Waiting for mint confirmation...', { id: 'mint-tokens' });
-    }
-  }, [mintConfirming]);
-
-  useEffect(() => {
-    if (mintConfirmed) {
-      toast.success('Tokens minted successfully!', { id: 'mint-tokens' });
-      refetchTokenBalance();
-    }
-  }, [mintConfirmed, refetchTokenBalance]);
+  }, [createError]);
 
   const handleApproveTokens = async () => {
     if (!address) {
@@ -291,27 +415,6 @@ export default function SessionsPage() {
     }
   };
 
-  const handleMintTokens = async () => {
-    if (!address) {
-      toast.error('Please connect your wallet first');
-      return;
-    }
-
-    try {
-      const mintAmount = parseEther('10'); // Mint 10 tokens
-      mintTokens({
-        address: CONTRACT_ADDRESSES.MOCK_ERC20,
-        abi: MOCK_ERC20_ABI,
-        functionName: 'mint',
-        args: [address, mintAmount],
-        chainId: arbitrumSepolia.id,
-      });
-    } catch (error) {
-      console.error('Error minting tokens:', error);
-      toast.error('Failed to mint tokens');
-    }
-  };
-
   const handleInputChange = (field: keyof CreateSessionFormData, value: any) => {
     setSessionFormData((prev) => ({
       ...prev,
@@ -325,6 +428,40 @@ export default function SessionsPage() {
         ...prev,
         mentorAddress: address,
       }));
+    }
+  };
+
+  const formatTimestamp = (timestamp: bigint) => {
+    return new Date(Number(timestamp) * 1000).toLocaleString();
+  };
+
+  const getSessionStateText = (state: number) => {
+    switch (state) {
+      case 0:
+        return 'Created';
+      case 1:
+        return 'Accepted';
+      case 2:
+        return 'Cancelled';
+      case 3:
+        return 'Completed';
+      default:
+        return 'Unknown';
+    }
+  };
+
+  const getSessionStateVariant = (state: number) => {
+    switch (state) {
+      case 0:
+        return 'default';
+      case 1:
+        return 'secondary';
+      case 2:
+        return 'destructive';
+      case 3:
+        return 'outline';
+      default:
+        return 'secondary';
     }
   };
 
@@ -352,6 +489,103 @@ export default function SessionsPage() {
             Create and manage mentoring sessions with token-based payments.
           </p>
         </div>
+
+        {/* Join Session by ID */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Join Session by ID</CardTitle>
+            <CardDescription>Enter a session ID to join directly</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4">
+              <Input
+                placeholder="Enter session ID (e.g., 1, 2, 3...)"
+                value={joinSessionId}
+                onChange={(e) => setJoinSessionId(e.target.value)}
+                type="number"
+                min="1"
+              />
+              <Button onClick={handleJoinSessionById} disabled={!joinSessionId}>
+                Join Session
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Session Details View */}
+        {viewSession && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                Session #{viewSession.id} Details
+                <Button variant="outline" size="sm" onClick={closeViewSession}>
+                  Close
+                </Button>
+              </CardTitle>
+              <CardDescription>Complete session information</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Creator</Label>
+                  <p className="text-sm font-mono">{viewSession.creator}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Mentor</Label>
+                  <p className="text-sm font-mono">{viewSession.mentor}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Start Time</Label>
+                  <p className="text-sm">{formatTimestamp(viewSession.startTime)}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Max Participants</Label>
+                  <p className="text-sm">{Number(viewSession.maxParticipants)}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Amount per Participant</Label>
+                  <p className="text-sm">{formatEther(viewSession.amountPerParticipant)} ETH</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Total Deposit</Label>
+                  <p className="text-sm">{formatEther(viewSession.sessionDeposit)} ETH</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Status</Label>
+                  <Badge variant={getSessionStateVariant(viewSession.state)}>
+                    {getSessionStateText(viewSession.state)}
+                  </Badge>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Type</Label>
+                  <div className="flex gap-2">
+                    {viewSession.isPrivateSession && <Badge variant="secondary">Private</Badge>}
+                    {viewSession.marketplace && <Badge variant="default">Marketplace</Badge>}
+                  </div>
+                </div>
+              </div>
+
+              <Separator className="my-4" />
+
+              <div>
+                <Label className="text-sm font-medium">
+                  Participants ({viewSession.participants.length})
+                </Label>
+                <div className="mt-2 space-y-1">
+                  {viewSession.participants.length > 0 ? (
+                    viewSession.participants.map((participant, index) => (
+                      <p key={index} className="text-sm font-mono">
+                        {participant}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No participants yet</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Tabs defaultValue="create" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
@@ -487,21 +721,16 @@ export default function SessionsPage() {
                     <div>
                       <Label>Your Token Balance</Label>
                       <p className="text-sm text-gray-600">
-                        {tokenBalance ? formatEther(tokenBalance) : '0'} tokens
+                        {tokenBalance ? formatEther(tokenBalance) : '0'} tokens available
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Need tokens? Contact the contract owner or use the faucet.
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">
                         {tokenBalance ? formatEther(tokenBalance) : '0'} MOCK
                       </Badge>
-                      <Button
-                        onClick={handleMintTokens}
-                        disabled={mintPending || mintConfirming}
-                        variant="outline"
-                        size="sm"
-                      >
-                        {mintPending || mintConfirming ? 'Minting...' : 'Mint 10 Tokens'}
-                      </Button>
                     </div>
                   </div>
 
@@ -529,17 +758,85 @@ export default function SessionsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Browse Sessions</CardTitle>
-                <CardDescription>Discover and join available mentoring sessions.</CardDescription>
+                <CardDescription>
+                  Discover and join all available mentoring sessions.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8">
-                  <p className="text-gray-600 mb-4">
-                    Total Sessions Created: {sessionCounter ? sessionCounter.toString() : '0'}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Session browsing functionality coming soon...
-                  </p>
-                </div>
+                {loadingSessions ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-600">Loading sessions...</p>
+                  </div>
+                ) : allSessions.length > 0 ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-600">
+                      {allSessions.length} session{allSessions.length === 1 ? '' : 's'} available
+                    </p>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Session ID</TableHead>
+                          <TableHead>Mentor</TableHead>
+                          <TableHead>Start Time</TableHead>
+                          <TableHead>Participants</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {allSessions.map((session) => (
+                          <TableRow key={session.id}>
+                            <TableCell>#{session.id}</TableCell>
+                            <TableCell className="font-mono text-sm">
+                              {session.mentor.slice(0, 6)}...{session.mentor.slice(-4)}
+                            </TableCell>
+                            <TableCell>{formatTimestamp(session.startTime)}</TableCell>
+                            <TableCell>
+                              {session.participants.length}/{Number(session.maxParticipants)}
+                            </TableCell>
+                            <TableCell>{formatEther(session.amountPerParticipant)} ETH</TableCell>
+                            <TableCell>
+                              <Badge variant={getSessionStateVariant(session.state)}>
+                                {getSessionStateText(session.state)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  disabled={
+                                    session.state !== 0 ||
+                                    session.participants.length >= Number(session.maxParticipants)
+                                  }
+                                >
+                                  Join
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleViewSession(session)}
+                                >
+                                  View
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-gray-600 mb-4">No sessions available right now.</p>
+                    <p className="text-sm text-gray-500">
+                      Total Sessions Created: {sessionCounter ? sessionCounter.toString() : '0'}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Create your first session using the "Create Session" tab above.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -553,11 +850,112 @@ export default function SessionsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8">
-                  <p className="text-sm text-gray-500">
-                    Session management functionality coming soon...
-                  </p>
-                </div>
+                {loadingSessions ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-600">Loading your sessions...</p>
+                  </div>
+                ) : mySessions.length > 0 ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-600">
+                      You have {mySessions.length} session{mySessions.length === 1 ? '' : 's'}
+                    </p>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Session ID</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Mentor</TableHead>
+                          <TableHead>Start Time</TableHead>
+                          <TableHead>Participants</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {mySessions.map((session) => {
+                          const isCreator =
+                            address && session.creator.toLowerCase() === address.toLowerCase();
+                          const isMentor =
+                            address && session.mentor.toLowerCase() === address.toLowerCase();
+                          const isParticipant =
+                            address &&
+                            session.participants.some(
+                              (p: string) => p.toLowerCase() === address.toLowerCase(),
+                            );
+
+                          let roleText = '';
+                          if (isCreator) roleText = 'Creator';
+                          else if (isMentor) roleText = 'Mentor';
+                          else if (isParticipant) roleText = 'Participant';
+
+                          return (
+                            <TableRow key={session.id}>
+                              <TableCell>#{session.id}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-xs">
+                                    {roleText}
+                                  </Badge>
+                                  {session.isPrivateSession && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Private
+                                    </Badge>
+                                  )}
+                                  {session.marketplace && (
+                                    <Badge variant="default" className="text-xs">
+                                      Marketplace
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="font-mono text-sm">
+                                {session.mentor.slice(0, 6)}...{session.mentor.slice(-4)}
+                              </TableCell>
+                              <TableCell>{formatTimestamp(session.startTime)}</TableCell>
+                              <TableCell>
+                                {session.participants.length}/{Number(session.maxParticipants)}
+                              </TableCell>
+                              <TableCell>{formatEther(session.amountPerParticipant)} ETH</TableCell>
+                              <TableCell>
+                                <Badge variant={getSessionStateVariant(session.state)}>
+                                  {getSessionStateText(session.state)}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-2">
+                                  {isMentor && session.state === SessionState.Accepted && (
+                                    <Button size="sm" variant="outline">
+                                      Complete
+                                    </Button>
+                                  )}
+                                  {(isCreator || isMentor) && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleViewSession(session)}
+                                    >
+                                      View
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-gray-600 mb-4">
+                      You haven't created, joined, or mentored any sessions yet.
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Create your first session using the "Create Session" tab above.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

@@ -44,13 +44,6 @@ export default function OwnerPage() {
     chainId: arbitrumSepolia.id,
   });
 
-  const { data: sessionsPaused, refetch: refetchSessionsPaused } = useReadContract({
-    address: CONTRACT_ADDRESSES.SESSIONS,
-    abi: SESSIONS_ABI,
-    functionName: 'paused',
-    chainId: arbitrumSepolia.id,
-  });
-
   // Read contract fee
   const { data: sessionsFee } = useReadContract({
     address: CONTRACT_ADDRESSES.SESSIONS,
@@ -73,6 +66,7 @@ export default function OwnerPage() {
     writeContract: setBlacklist,
     data: blacklistHash,
     isPending: blacklistPending,
+    error: blacklistError,
   } = useWriteContract();
 
   const { isLoading: blacklistConfirming, isSuccess: blacklistConfirmed } =
@@ -85,6 +79,7 @@ export default function OwnerPage() {
     writeContract: toggleMentorsPause,
     data: mentorsPauseHash,
     isPending: mentorsPausePending,
+    error: mentorsPauseError,
   } = useWriteContract();
 
   const { isLoading: mentorsPauseConfirming, isSuccess: mentorsPauseConfirmed } =
@@ -97,12 +92,25 @@ export default function OwnerPage() {
     writeContract: withdraw,
     data: withdrawHash,
     isPending: withdrawPending,
+    error: withdrawError,
   } = useWriteContract();
 
   const { isLoading: withdrawConfirming, isSuccess: withdrawConfirmed } =
     useWaitForTransactionReceipt({
       hash: withdrawHash,
     });
+
+  // Mint tokens transaction
+  const {
+    writeContract: mintTokens,
+    data: mintHash,
+    isPending: mintPending,
+    error: mintError,
+  } = useWriteContract();
+
+  const { isLoading: mintConfirming, isSuccess: mintConfirmed } = useWaitForTransactionReceipt({
+    hash: mintHash,
+  });
 
   // Handle transaction states
   useEffect(() => {
@@ -125,6 +133,13 @@ export default function OwnerPage() {
     }
   }, [blacklistConfirmed]);
 
+  // Handle blacklist errors
+  useEffect(() => {
+    if (blacklistError) {
+      toast.error('Blacklist update failed', { id: 'blacklist' });
+    }
+  }, [blacklistError]);
+
   useEffect(() => {
     if (mentorsPausePending) {
       toast.loading('Updating pause status...', { id: 'pause' });
@@ -141,9 +156,15 @@ export default function OwnerPage() {
     if (mentorsPauseConfirmed) {
       toast.success('Pause status updated successfully!', { id: 'pause' });
       refetchMentorsPaused();
-      refetchSessionsPaused();
     }
-  }, [mentorsPauseConfirmed, refetchMentorsPaused, refetchSessionsPaused]);
+  }, [mentorsPauseConfirmed, refetchMentorsPaused]);
+
+  // Handle pause errors
+  useEffect(() => {
+    if (mentorsPauseError) {
+      toast.error('Pause status update failed', { id: 'pause' });
+    }
+  }, [mentorsPauseError]);
 
   useEffect(() => {
     if (withdrawPending) {
@@ -165,6 +186,39 @@ export default function OwnerPage() {
       refetchSessionsBalance();
     }
   }, [withdrawConfirmed, refetchSessionsBalance]);
+
+  // Handle withdraw errors
+  useEffect(() => {
+    if (withdrawError) {
+      toast.error('Withdrawal failed', { id: 'withdraw' });
+    }
+  }, [withdrawError]);
+
+  // Handle mint transaction states
+  useEffect(() => {
+    if (mintPending) {
+      toast.loading('Minting tokens...', { id: 'mint-tokens' });
+    }
+  }, [mintPending]);
+
+  useEffect(() => {
+    if (mintConfirming) {
+      toast.loading('Waiting for mint confirmation...', { id: 'mint-tokens' });
+    }
+  }, [mintConfirming]);
+
+  useEffect(() => {
+    if (mintConfirmed) {
+      toast.success('Tokens minted successfully!', { id: 'mint-tokens' });
+    }
+  }, [mintConfirmed]);
+
+  // Handle mint errors
+  useEffect(() => {
+    if (mintError) {
+      toast.error('Token minting failed', { id: 'mint-tokens' });
+    }
+  }, [mintError]);
 
   const isOwner =
     address &&
@@ -191,22 +245,19 @@ export default function OwnerPage() {
     }
   };
 
-  const handleTogglePause = async (contract: 'mentors' | 'sessions') => {
+  const handleTogglePause = async () => {
     if (!address) {
       toast.error('Please connect your wallet first');
       return;
     }
 
     try {
-      const contractAddress =
-        contract === 'mentors' ? CONTRACT_ADDRESSES.MENTORS : CONTRACT_ADDRESSES.SESSIONS;
-      const contractABI = contract === 'mentors' ? MENTORS_ABI : SESSIONS_ABI;
-      const isPaused = contract === 'mentors' ? mentorsPaused : sessionsPaused;
+      const isPaused = mentorsPaused;
       const functionName = isPaused ? 'unpause' : 'pause';
 
       toggleMentorsPause({
-        address: contractAddress,
-        abi: contractABI,
+        address: CONTRACT_ADDRESSES.MENTORS,
+        abi: MENTORS_ABI,
         functionName,
         chainId: arbitrumSepolia.id,
       });
@@ -234,6 +285,27 @@ export default function OwnerPage() {
     } catch (error) {
       console.error('Error withdrawing funds:', error);
       toast.error('Failed to withdraw funds');
+    }
+  };
+
+  const handleMintTokens = async () => {
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      const mintAmount = parseEther('100'); // Mint 100 tokens for testing
+      mintTokens({
+        address: CONTRACT_ADDRESSES.MOCK_ERC20,
+        abi: MOCK_ERC20_ABI,
+        functionName: 'mint',
+        args: [address, mintAmount],
+        chainId: arbitrumSepolia.id,
+      });
+    } catch (error) {
+      console.error('Error minting tokens:', error);
+      toast.error('Failed to mint tokens');
     }
   };
 
@@ -291,7 +363,7 @@ export default function OwnerPage() {
                       {mentorsPaused ? 'Paused' : 'Active'}
                     </Badge>
                     <Button
-                      onClick={() => handleTogglePause('mentors')}
+                      onClick={handleTogglePause}
                       disabled={mentorsPausePending || mentorsPauseConfirming}
                       variant="outline"
                       size="sm"
@@ -303,17 +375,8 @@ export default function OwnerPage() {
                 <div>
                   <Label className="text-sm font-medium">Sessions Contract</Label>
                   <div className="flex items-center gap-2 mt-1">
-                    <Badge variant={sessionsPaused ? 'destructive' : 'default'}>
-                      {sessionsPaused ? 'Paused' : 'Active'}
-                    </Badge>
-                    <Button
-                      onClick={() => handleTogglePause('sessions')}
-                      disabled={mentorsPausePending || mentorsPauseConfirming}
-                      variant="outline"
-                      size="sm"
-                    >
-                      {sessionsPaused ? 'Unpause' : 'Pause'}
-                    </Button>
+                    <Badge variant="default">Always Active</Badge>
+                    <p className="text-xs text-gray-500">No pause functionality</p>
                   </div>
                 </div>
               </div>
@@ -363,8 +426,10 @@ export default function OwnerPage() {
           {/* Fee Management */}
           <Card>
             <CardHeader>
-              <CardTitle>Fee Management</CardTitle>
-              <CardDescription>View contract fees and withdraw accumulated funds.</CardDescription>
+              <CardTitle>Fee Management & Token Utilities</CardTitle>
+              <CardDescription>
+                View contract fees, withdraw funds, and manage test tokens.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -385,6 +450,24 @@ export default function OwnerPage() {
               <Separator />
 
               <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-sm font-medium">Test Token Management</Label>
+                    <p className="text-sm text-gray-600">
+                      Mint test tokens for development and testing purposes
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleMintTokens}
+                    disabled={mintPending || mintConfirming}
+                    variant="outline"
+                  >
+                    {mintPending || mintConfirming ? 'Minting...' : 'Mint 100 Tokens'}
+                  </Button>
+                </div>
+
+                <Separator />
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="withdraw-amount">Amount to Withdraw</Label>
