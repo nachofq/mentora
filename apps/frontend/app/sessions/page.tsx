@@ -169,20 +169,33 @@ export default function SessionsPage() {
       console.log(`Session ${index + 1} query:`, query.data, query.isLoading, query.error);
       if (query.data) {
         const sessionInfo = query.data;
-        sessionsData.push({
-          id: index + 1,
-          creator: sessionInfo[0],
-          mentor: sessionInfo[1],
-          startTime: sessionInfo[2],
-          endTime: sessionInfo[3],
-          amountPerParticipant: sessionInfo[4],
-          maxParticipants: sessionInfo[5],
-          participants: [...sessionInfo[6]],
-          state: sessionInfo[7],
-          sessionDeposit: sessionInfo[8],
-          isPrivateSession: sessionInfo[9],
-          marketplace: sessionInfo[10],
-        });
+
+        // Validate that the session has valid data
+        // Check if creator is not the zero address and has valid start time
+        const creator = sessionInfo[0];
+        const mentor = sessionInfo[1];
+        const startTime = sessionInfo[2];
+
+        if (
+          creator !== '0x0000000000000000000000000000000000000000' &&
+          mentor !== '0x0000000000000000000000000000000000000000' &&
+          Number(startTime) > 0
+        ) {
+          sessionsData.push({
+            id: index + 1,
+            creator: sessionInfo[0],
+            mentor: sessionInfo[1],
+            startTime: sessionInfo[2],
+            endTime: sessionInfo[3],
+            amountPerParticipant: sessionInfo[4],
+            maxParticipants: sessionInfo[5],
+            participants: [...sessionInfo[6]],
+            state: sessionInfo[7],
+            sessionDeposit: sessionInfo[8],
+            isPrivateSession: sessionInfo[9],
+            marketplace: sessionInfo[10],
+          });
+        }
       }
     });
 
@@ -1051,7 +1064,6 @@ export default function SessionsPage() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Session ID</TableHead>
-                            <TableHead>Type</TableHead>
                             <TableHead>Mentor</TableHead>
                             <TableHead>Start Time</TableHead>
                             <TableHead>Participants</TableHead>
@@ -1061,90 +1073,55 @@ export default function SessionsPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {allSessions.map((session) => {
-                            const isCreator =
-                              address && session.creator.toLowerCase() === address.toLowerCase();
-                            const isParticipant =
-                              address &&
-                              session.participants.some(
-                                (p) => p.toLowerCase() === address.toLowerCase(),
-                              );
-
-                            let userRole = '';
-                            if (isCreator) userRole = 'Creator';
-                            else if (isParticipant) userRole = 'Participant';
-
-                            return (
-                              <TableRow key={session.id}>
-                                <TableCell>#{session.id}</TableCell>
-                                <TableCell>
-                                  <div className="flex items-center gap-2">
-                                    {userRole && (
-                                      <Badge variant="outline" className="text-xs">
-                                        {userRole}
-                                      </Badge>
-                                    )}
-                                    {session.isPrivateSession && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        Private
-                                      </Badge>
-                                    )}
-                                    {session.marketplace && (
-                                      <Badge variant="default" className="text-xs">
-                                        Marketplace
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="font-mono text-sm">
-                                  {session.mentor.slice(0, 6)}...{session.mentor.slice(-4)}
-                                </TableCell>
-                                <TableCell>{formatTimestamp(session.startTime)}</TableCell>
-                                <TableCell>
-                                  {session.participants.length}/{Number(session.maxParticipants)}
-                                </TableCell>
-                                <TableCell>
-                                  {formatEther(session.amountPerParticipant)} ETH
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant={getSessionStateVariant(session.state)}>
-                                    {getSessionStateText(session.state)}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex gap-2">
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handleJoinClick(session)}
-                                      disabled={
-                                        session.state !== 0 ||
-                                        session.participants.length >=
-                                          Number(session.maxParticipants) ||
-                                        (address &&
-                                          session.participants.some(
-                                            (p) => p.toLowerCase() === address.toLowerCase(),
-                                          ))
-                                      }
-                                    >
-                                      {address &&
-                                      session.participants.some(
-                                        (p) => p.toLowerCase() === address.toLowerCase(),
-                                      )
-                                        ? 'Joined'
-                                        : 'Join'}
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleViewSession(session)}
-                                    >
-                                      View
-                                    </Button>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
+                          {allSessions.map((session) => (
+                            <TableRow key={session.id}>
+                              <TableCell>#{session.id}</TableCell>
+                              <TableCell className="font-mono text-sm">
+                                {session.mentor.slice(0, 6)}...{session.mentor.slice(-4)}
+                              </TableCell>
+                              <TableCell>{formatTimestamp(session.startTime)}</TableCell>
+                              <TableCell>
+                                {session.participants.length}/{Number(session.maxParticipants)}
+                              </TableCell>
+                              <TableCell>{formatEther(session.amountPerParticipant)} ETH</TableCell>
+                              <TableCell>
+                                <Badge variant={getSessionStateVariant(session.state)}>
+                                  {getSessionStateText(session.state)}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleJoinClick(session)}
+                                    disabled={
+                                      session.state !== 0 ||
+                                      session.participants.length >=
+                                        Number(session.maxParticipants) ||
+                                      (address &&
+                                        session.participants.some(
+                                          (p) => p.toLowerCase() === address.toLowerCase(),
+                                        ))
+                                    }
+                                  >
+                                    {address &&
+                                    session.participants.some(
+                                      (p) => p.toLowerCase() === address.toLowerCase(),
+                                    )
+                                      ? 'Joined'
+                                      : 'Join'}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleViewSession(session)}
+                                  >
+                                    View
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
                         </TableBody>
                       </Table>
                     </div>
