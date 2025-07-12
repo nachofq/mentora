@@ -12,7 +12,11 @@
     "test:accept": "hardhat test test/AcceptLobby.test.ts",
     "test:cancel": "hardhat test test/CancelLobby.test.ts",
     "test:abandon": "hardhat test test/AbandonLobby.test.ts",
-    "test:complete": "hardhat test test/CompleteLobby.test.ts"
+    "test:complete": "hardhat test test/CompleteLobby.test.ts",
+    "deploy:arbitrum-sepolia": "hardhat run scripts/deploy-arbitrum-sepolia.ts --network arbitrumSepolia",
+    "deploy:arbitrum": "hardhat run scripts/deploy-arbitrum-sepolia.ts --network arbitrum",
+    "deploy:local": "hardhat run scripts/deploy-arbitrum-sepolia.ts --network hardhat",
+    "verify:arbitrum-sepolia": "hardhat verify --network arbitrumSepolia"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
