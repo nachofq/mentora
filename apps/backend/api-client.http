@@ -34,6 +34,11 @@ Content-Type: {{contentType}}
 POST {{baseUrl}}/livekit/tokens
 Content-Type: {{contentType}}
 
+{
+  "address": "0x123abc...",
+  "sessionId": "unique-session-id"
+}
+
 ###
 
 ### Test with different environments

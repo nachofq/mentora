@@ -1,5 +1,6 @@
-import { Controller, Post, Get, Delete, Param } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Param, Body } from '@nestjs/common';
 import { LivekitService } from './livekit.service';
+import { CreateTokenDto } from './dto/create-token.dto';
 
 @Controller('livekit')
 export class LivekitController {
@@ -26,7 +27,7 @@ export class LivekitController {
   }
 
   @Post('tokens')
-  createToken() {
-    return this.livekitService.createToken();
+  createToken(@Body() createTokenDto: CreateTokenDto) {
+    return this.livekitService.createToken(createTokenDto);
   }
 }
