@@ -1,0 +1,450 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { arbitrumSepolia } from 'wagmi/chains';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { toast } from 'react-hot-toast';
+import { CONTRACT_ADDRESSES, MENTORS_ABI, SESSIONS_ABI, MOCK_ERC20_ABI } from '@/lib/contracts';
+import { formatEther, parseEther } from 'viem';
+
+export default function OwnerPage() {
+  const { address, isConnected } = useAccount();
+  const [blacklistAddress, setBlacklistAddress] = useState('');
+  const [blacklistFlag, setBlacklistFlag] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawRecipient, setWithdrawRecipient] = useState('');
+
+  // Check if user is owner of contracts
+  const { data: mentorsOwner } = useReadContract({
+    address: CONTRACT_ADDRESSES.MENTORS,
+    abi: MENTORS_ABI,
+    functionName: 'owner',
+    chainId: arbitrumSepolia.id,
+  });
+
+  const { data: sessionsOwner } = useReadContract({
+    address: CONTRACT_ADDRESSES.SESSIONS,
+    abi: SESSIONS_ABI,
+    functionName: 'owner',
+    chainId: arbitrumSepolia.id,
+  });
+
+  // Check if contracts are paused
+  const { data: mentorsPaused, refetch: refetchMentorsPaused } = useReadContract({
+    address: CONTRACT_ADDRESSES.MENTORS,
+    abi: MENTORS_ABI,
+    functionName: 'paused',
+    chainId: arbitrumSepolia.id,
+  });
+
+  const { data: sessionsPaused, refetch: refetchSessionsPaused } = useReadContract({
+    address: CONTRACT_ADDRESSES.SESSIONS,
+    abi: SESSIONS_ABI,
+    functionName: 'paused',
+    chainId: arbitrumSepolia.id,
+  });
+
+  // Read contract fee
+  const { data: sessionsFee } = useReadContract({
+    address: CONTRACT_ADDRESSES.SESSIONS,
+    abi: SESSIONS_ABI,
+    functionName: 'fee',
+    chainId: arbitrumSepolia.id,
+  });
+
+  // Read contract balance
+  const { data: sessionsBalance, refetch: refetchSessionsBalance } = useReadContract({
+    address: CONTRACT_ADDRESSES.SESSIONS,
+    abi: SESSIONS_ABI,
+    functionName: 'getContractBalance',
+    args: [CONTRACT_ADDRESSES.MOCK_ERC20],
+    chainId: arbitrumSepolia.id,
+  });
+
+  // Blacklist transaction
+  const {
+    writeContract: setBlacklist,
+    data: blacklistHash,
+    isPending: blacklistPending,
+  } = useWriteContract();
+
+  const { isLoading: blacklistConfirming, isSuccess: blacklistConfirmed } =
+    useWaitForTransactionReceipt({
+      hash: blacklistHash,
+    });
+
+  // Pause/unpause mentors transaction
+  const {
+    writeContract: toggleMentorsPause,
+    data: mentorsPauseHash,
+    isPending: mentorsPausePending,
+  } = useWriteContract();
+
+  const { isLoading: mentorsPauseConfirming, isSuccess: mentorsPauseConfirmed } =
+    useWaitForTransactionReceipt({
+      hash: mentorsPauseHash,
+    });
+
+  // Withdraw transaction
+  const {
+    writeContract: withdraw,
+    data: withdrawHash,
+    isPending: withdrawPending,
+  } = useWriteContract();
+
+  const { isLoading: withdrawConfirming, isSuccess: withdrawConfirmed } =
+    useWaitForTransactionReceipt({
+      hash: withdrawHash,
+    });
+
+  // Handle transaction states
+  useEffect(() => {
+    if (blacklistPending) {
+      toast.loading('Updating blacklist...', { id: 'blacklist' });
+    }
+  }, [blacklistPending]);
+
+  useEffect(() => {
+    if (blacklistConfirming) {
+      toast.loading('Waiting for confirmation...', { id: 'blacklist' });
+    }
+  }, [blacklistConfirming]);
+
+  useEffect(() => {
+    if (blacklistConfirmed) {
+      toast.success('Blacklist updated successfully!', { id: 'blacklist' });
+      setBlacklistAddress('');
+      setBlacklistFlag(false);
+    }
+  }, [blacklistConfirmed]);
+
+  useEffect(() => {
+    if (mentorsPausePending) {
+      toast.loading('Updating pause status...', { id: 'pause' });
+    }
+  }, [mentorsPausePending]);
+
+  useEffect(() => {
+    if (mentorsPauseConfirming) {
+      toast.loading('Waiting for confirmation...', { id: 'pause' });
+    }
+  }, [mentorsPauseConfirming]);
+
+  useEffect(() => {
+    if (mentorsPauseConfirmed) {
+      toast.success('Pause status updated successfully!', { id: 'pause' });
+      refetchMentorsPaused();
+      refetchSessionsPaused();
+    }
+  }, [mentorsPauseConfirmed, refetchMentorsPaused, refetchSessionsPaused]);
+
+  useEffect(() => {
+    if (withdrawPending) {
+      toast.loading('Withdrawing funds...', { id: 'withdraw' });
+    }
+  }, [withdrawPending]);
+
+  useEffect(() => {
+    if (withdrawConfirming) {
+      toast.loading('Waiting for confirmation...', { id: 'withdraw' });
+    }
+  }, [withdrawConfirming]);
+
+  useEffect(() => {
+    if (withdrawConfirmed) {
+      toast.success('Funds withdrawn successfully!', { id: 'withdraw' });
+      setWithdrawAmount('');
+      setWithdrawRecipient('');
+      refetchSessionsBalance();
+    }
+  }, [withdrawConfirmed, refetchSessionsBalance]);
+
+  const isOwner =
+    address &&
+    ((mentorsOwner && address.toLowerCase() === mentorsOwner.toLowerCase()) ||
+      (sessionsOwner && address.toLowerCase() === sessionsOwner.toLowerCase()));
+
+  const handleSetBlacklist = async () => {
+    if (!address || !blacklistAddress) {
+      toast.error('Please enter an address to blacklist');
+      return;
+    }
+
+    try {
+      setBlacklist({
+        address: CONTRACT_ADDRESSES.MENTORS,
+        abi: MENTORS_ABI,
+        functionName: 'setBlacklist',
+        args: [blacklistAddress as `0x${string}`, blacklistFlag],
+        chainId: arbitrumSepolia.id,
+      });
+    } catch (error) {
+      console.error('Error setting blacklist:', error);
+      toast.error('Failed to update blacklist');
+    }
+  };
+
+  const handleTogglePause = async (contract: 'mentors' | 'sessions') => {
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      const contractAddress =
+        contract === 'mentors' ? CONTRACT_ADDRESSES.MENTORS : CONTRACT_ADDRESSES.SESSIONS;
+      const contractABI = contract === 'mentors' ? MENTORS_ABI : SESSIONS_ABI;
+      const isPaused = contract === 'mentors' ? mentorsPaused : sessionsPaused;
+      const functionName = isPaused ? 'unpause' : 'pause';
+
+      toggleMentorsPause({
+        address: contractAddress,
+        abi: contractABI,
+        functionName,
+        chainId: arbitrumSepolia.id,
+      });
+    } catch (error) {
+      console.error('Error toggling pause:', error);
+      toast.error('Failed to toggle pause status');
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!address || !withdrawAmount || !withdrawRecipient) {
+      toast.error('Please enter amount and recipient address');
+      return;
+    }
+
+    try {
+      const amount = parseEther(withdrawAmount);
+      withdraw({
+        address: CONTRACT_ADDRESSES.SESSIONS,
+        abi: SESSIONS_ABI,
+        functionName: 'withdraw',
+        args: [CONTRACT_ADDRESSES.MOCK_ERC20, withdrawRecipient as `0x${string}`, amount],
+        chainId: arbitrumSepolia.id,
+      });
+    } catch (error) {
+      console.error('Error withdrawing funds:', error);
+      toast.error('Failed to withdraw funds');
+    }
+  };
+
+  if (!isConnected) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card className="max-w-md mx-auto">
+          <CardHeader>
+            <CardTitle>Connect Your Wallet</CardTitle>
+            <CardDescription>
+              Please connect your wallet to access the owner dashboard.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!isOwner) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card className="max-w-md mx-auto">
+          <CardHeader>
+            <CardTitle>Access Denied</CardTitle>
+            <CardDescription>
+              You are not the owner of any contracts. Only contract owners can access this page.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Owner Dashboard</h1>
+          <p className="text-gray-600">Manage contract settings and administrative functions.</p>
+        </div>
+
+        <div className="grid gap-6">
+          {/* Contract Status */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Contract Status</CardTitle>
+              <CardDescription>View and manage the status of your contracts.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Mentors Contract</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant={mentorsPaused ? 'destructive' : 'default'}>
+                      {mentorsPaused ? 'Paused' : 'Active'}
+                    </Badge>
+                    <Button
+                      onClick={() => handleTogglePause('mentors')}
+                      disabled={mentorsPausePending || mentorsPauseConfirming}
+                      variant="outline"
+                      size="sm"
+                    >
+                      {mentorsPaused ? 'Unpause' : 'Pause'}
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Sessions Contract</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant={sessionsPaused ? 'destructive' : 'default'}>
+                      {sessionsPaused ? 'Paused' : 'Active'}
+                    </Badge>
+                    <Button
+                      onClick={() => handleTogglePause('sessions')}
+                      disabled={mentorsPausePending || mentorsPauseConfirming}
+                      variant="outline"
+                      size="sm"
+                    >
+                      {sessionsPaused ? 'Unpause' : 'Pause'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Blacklist Management */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Blacklist Management</CardTitle>
+              <CardDescription>Add or remove addresses from the blacklist.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="blacklist-address">Address</Label>
+                  <Input
+                    id="blacklist-address"
+                    placeholder="0x..."
+                    value={blacklistAddress}
+                    onChange={(e) => setBlacklistAddress(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="blacklist-flag">Action</Label>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="blacklist-flag"
+                      checked={blacklistFlag}
+                      onCheckedChange={setBlacklistFlag}
+                    />
+                    <Label htmlFor="blacklist-flag">
+                      {blacklistFlag ? 'Add to blacklist' : 'Remove from blacklist'}
+                    </Label>
+                  </div>
+                </div>
+              </div>
+              <Button
+                onClick={handleSetBlacklist}
+                disabled={blacklistPending || blacklistConfirming}
+              >
+                {blacklistPending || blacklistConfirming ? 'Updating...' : 'Update Blacklist'}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Fee Management */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Fee Management</CardTitle>
+              <CardDescription>View contract fees and withdraw accumulated funds.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Current Fee Rate</Label>
+                  <p className="text-sm text-gray-600">
+                    {sessionsFee ? `${Number(sessionsFee) / 100}%` : 'Loading...'}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Contract Balance</Label>
+                  <p className="text-sm text-gray-600">
+                    {sessionsBalance ? formatEther(sessionsBalance) : '0'} tokens
+                  </p>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="withdraw-amount">Amount to Withdraw</Label>
+                    <Input
+                      id="withdraw-amount"
+                      type="number"
+                      step="0.001"
+                      placeholder="0.0"
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="withdraw-recipient">Recipient Address</Label>
+                    <Input
+                      id="withdraw-recipient"
+                      placeholder="0x..."
+                      value={withdrawRecipient}
+                      onChange={(e) => setWithdrawRecipient(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <Button onClick={handleWithdraw} disabled={withdrawPending || withdrawConfirming}>
+                  {withdrawPending || withdrawConfirming ? 'Withdrawing...' : 'Withdraw Funds'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Contract Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Contract Information</CardTitle>
+              <CardDescription>View deployed contract addresses and details.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Mentors Contract</Label>
+                  <p className="text-xs text-gray-600 font-mono">{CONTRACT_ADDRESSES.MENTORS}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Sessions Contract</Label>
+                  <p className="text-xs text-gray-600 font-mono">{CONTRACT_ADDRESSES.SESSIONS}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Participants Contract</Label>
+                  <p className="text-xs text-gray-600 font-mono">
+                    {CONTRACT_ADDRESSES.PARTICIPANTS}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">MockERC20 Contract</Label>
+                  <p className="text-xs text-gray-600 font-mono">{CONTRACT_ADDRESSES.MOCK_ERC20}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
