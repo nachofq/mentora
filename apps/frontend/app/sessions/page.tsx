@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { arbitrumSepolia } from 'wagmi/chains';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -43,6 +44,7 @@ import { formatEther, parseEther } from 'viem';
 
 export default function SessionsPage() {
   const { address, isConnected } = useAccount();
+  const router = useRouter();
 
   // Extended session type for UI display
   type SessionDisplay = SessionInfo & {
@@ -69,6 +71,7 @@ export default function SessionsPage() {
   const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<SessionDisplay | null>(null);
   const [joinAmount, setJoinAmount] = useState('');
+  const [attendingSession, setAttendingSession] = useState<number | null>(null);
 
   // Read token balance
   const { data: tokenBalance, refetch: refetchTokenBalance } = useReadContract({
@@ -344,6 +347,49 @@ export default function SessionsPage() {
 
   const closeViewSession = () => {
     setViewSession(null);
+  };
+
+  const handleAttendSession = async (sessionId: number) => {
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    setAttendingSession(sessionId);
+
+    try {
+      // Make API call to create LiveKit token
+      const response = await fetch('http://localhost:3000/livekit/tokens', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          address: address,
+          sessionId: sessionId.toString(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create LiveKit token');
+      }
+
+      const data = await response.json();
+      const token = data.token;
+
+      if (!token) {
+        throw new Error('No token received from server');
+      }
+      console.log(token);
+      // Navigate to the custom video session page
+      const serverUrl = 'wss://mentora-1oy3c9l5.livekit.cloud';
+      router.push(`/custom/?liveKitUrl=${serverUrl}&token=${token}`);
+    } catch (error) {
+      console.error('Error attending session:', error);
+      toast.error('Failed to join video session. Please try again.');
+    } finally {
+      setAttendingSession(null);
+    }
   };
 
   // Token approve transaction
@@ -1211,6 +1257,15 @@ export default function SessionsPage() {
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex gap-2">
+                                    {isParticipant && ( // TODO: add session.state === SessionState.Accepted
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleAttendSession(session.id)}
+                                        disabled={attendingSession === session.id}
+                                      >
+                                        {attendingSession === session.id ? 'Joining...' : 'Attend'}
+                                      </Button>
+                                    )}
                                     {isMentor && session.state === SessionState.Accepted && (
                                       <Button size="sm" variant="outline">
                                         Complete
