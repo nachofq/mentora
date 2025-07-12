@@ -11,6 +11,15 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -56,6 +65,11 @@ export default function SessionsPage() {
   const [joinSessionId, setJoinSessionId] = useState('');
   const [viewSession, setViewSession] = useState<SessionDisplay | null>(null);
 
+  // Join dialog state
+  const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<SessionDisplay | null>(null);
+  const [joinAmount, setJoinAmount] = useState('');
+
   // Read token balance
   const { data: tokenBalance, refetch: refetchTokenBalance } = useReadContract({
     address: CONTRACT_ADDRESSES.MOCK_ERC20,
@@ -69,7 +83,7 @@ export default function SessionsPage() {
   });
 
   // Read token allowance
-  const { data: tokenAllowance } = useReadContract({
+  const { data: tokenAllowance, refetch: refetchTokenAllowance } = useReadContract({
     address: CONTRACT_ADDRESSES.MOCK_ERC20,
     abi: MOCK_ERC20_ABI,
     functionName: 'allowance',
@@ -196,14 +210,118 @@ export default function SessionsPage() {
         session.participants.some((p: string) => p.toLowerCase() === address.toLowerCase())),
   );
 
+  const handleJoinClick = (session: SessionDisplay) => {
+    setSelectedSession(session);
+    setJoinAmount(formatEther(session.amountPerParticipant));
+    setIsJoinDialogOpen(true);
+  };
+
+  const handleApproveForJoin = async () => {
+    if (!selectedSession || !joinAmount) return;
+
+    try {
+      const amount = parseEther(joinAmount);
+
+      console.log('Approving tokens for join:', {
+        amount: amount.toString(),
+        amountInEther: formatEther(amount),
+        sessionId: selectedSession.id,
+      });
+
+      approveToken({
+        address: CONTRACT_ADDRESSES.MOCK_ERC20,
+        abi: MOCK_ERC20_ABI,
+        functionName: 'approve',
+        args: [CONTRACT_ADDRESSES.SESSIONS, amount],
+        chainId: arbitrumSepolia.id,
+      });
+    } catch (error) {
+      console.error('Error approving tokens for join:', error);
+      toast.error('Failed to approve tokens');
+    }
+  };
+
+  const handleJoinSession = async () => {
+    if (!selectedSession || !joinAmount || !address) return;
+
+    try {
+      const amount = parseEther(joinAmount);
+
+      // Validate session state
+      if (selectedSession.state !== 0) {
+        toast.error('This session is no longer available for joining');
+        return;
+      }
+
+      // Check if session is full
+      if (selectedSession.participants.length >= Number(selectedSession.maxParticipants)) {
+        toast.error('This session is already full');
+        return;
+      }
+
+      // Check if user is already a participant
+      if (selectedSession.participants.some((p) => p.toLowerCase() === address.toLowerCase())) {
+        toast.error('You have already joined this session');
+        return;
+      }
+
+      // Validate amount is at least the minimum required
+      if (amount < selectedSession.amountPerParticipant) {
+        toast.error(
+          `Amount must be at least ${formatEther(selectedSession.amountPerParticipant)} tokens`,
+        );
+        return;
+      }
+
+      // Check token balance
+      if (tokenBalance && tokenBalance < amount) {
+        toast.error(
+          `Insufficient token balance. Required: ${joinAmount}, Available: ${formatEther(tokenBalance)}`,
+        );
+        return;
+      }
+
+      // Check token allowance
+      if (tokenAllowance && tokenAllowance < amount) {
+        toast.error(
+          `Insufficient token allowance. Please approve tokens first. Required: ${joinAmount}, Approved: ${formatEther(tokenAllowance)}`,
+        );
+        return;
+      }
+
+      console.log('Joining session with params:', {
+        sessionId: selectedSession.id,
+        amount: amount.toString(),
+        amountInEther: formatEther(amount),
+      });
+
+      joinSession({
+        address: CONTRACT_ADDRESSES.SESSIONS,
+        abi: SESSIONS_ABI,
+        functionName: 'joinSession',
+        args: [BigInt(selectedSession.id), amount],
+        chainId: arbitrumSepolia.id,
+      });
+    } catch (error) {
+      console.error('Error joining session:', error);
+      toast.error('Failed to join session');
+    }
+  };
+
   const handleJoinSessionById = async () => {
     if (!joinSessionId) {
       toast.error('Please enter a session ID');
       return;
     }
 
-    // TODO: Implement join session logic
-    toast.success(`Joining session ${joinSessionId} - functionality to be implemented`);
+    // Find the session by ID
+    const sessionToJoin = sessions.find((s) => s.id === parseInt(joinSessionId));
+    if (!sessionToJoin) {
+      toast.error('Session not found');
+      return;
+    }
+
+    handleJoinClick(sessionToJoin);
     setJoinSessionId('');
   };
 
@@ -240,6 +358,18 @@ export default function SessionsPage() {
     hash: createHash,
   });
 
+  // Join session transaction
+  const {
+    writeContract: joinSession,
+    data: joinHash,
+    isPending: joinPending,
+    error: joinError,
+  } = useWriteContract();
+
+  const { isLoading: joinConfirming, isSuccess: joinConfirmed } = useWaitForTransactionReceipt({
+    hash: joinHash,
+  });
+
   // Handle transaction states
   useEffect(() => {
     if (approvePending) {
@@ -256,8 +386,10 @@ export default function SessionsPage() {
   useEffect(() => {
     if (approveConfirmed) {
       toast.success('Tokens approved successfully!', { id: 'approve-token' });
+      // Refetch token allowance to update the UI
+      refetchTokenAllowance();
     }
-  }, [approveConfirmed]);
+  }, [approveConfirmed, refetchTokenAllowance]);
 
   // Handle approve errors
   useEffect(() => {
@@ -302,6 +434,61 @@ export default function SessionsPage() {
       toast.error('Session creation failed', { id: 'create-session' });
     }
   }, [createError]);
+
+  // Handle join transaction states
+  useEffect(() => {
+    if (joinPending) {
+      toast.loading('Joining session...', { id: 'join-session' });
+    }
+  }, [joinPending]);
+
+  useEffect(() => {
+    if (joinConfirming) {
+      toast.loading('Waiting for join confirmation...', { id: 'join-session' });
+    }
+  }, [joinConfirming]);
+
+  useEffect(() => {
+    if (joinConfirmed) {
+      toast.success('Successfully joined session!', { id: 'join-session' });
+      setIsJoinDialogOpen(false);
+      setSelectedSession(null);
+      setJoinAmount('');
+      refetchTokenBalance();
+      refetchTokenAllowance();
+      // Reload sessions to update participant count
+      loadSessions();
+    }
+  }, [joinConfirmed, refetchTokenBalance, refetchTokenAllowance]);
+
+  // Handle join errors with more specific messages
+  useEffect(() => {
+    if (joinError) {
+      console.error('Join transaction error:', joinError);
+
+      // Try to decode common error messages
+      const errorMessage = joinError.message || joinError.toString();
+
+      if (errorMessage.includes('insufficient')) {
+        toast.error('Insufficient tokens or allowance for joining session', { id: 'join-session' });
+      } else if (errorMessage.includes('SessionNotFound') || errorMessage.includes('session')) {
+        toast.error('Session not found or invalid', { id: 'join-session' });
+      } else if (errorMessage.includes('SessionFull') || errorMessage.includes('full')) {
+        toast.error('Session is already full', { id: 'join-session' });
+      } else if (
+        errorMessage.includes('AlreadyParticipant') ||
+        errorMessage.includes('participant')
+      ) {
+        toast.error('You are already a participant in this session', { id: 'join-session' });
+      } else if (errorMessage.includes('SessionNotActive') || errorMessage.includes('state')) {
+        toast.error('Session is not available for joining', { id: 'join-session' });
+      } else {
+        toast.error('Failed to join session. Please check the console for details.', {
+          id: 'join-session',
+        });
+      }
+    }
+  }, [joinError]);
 
   const handleApproveTokens = async () => {
     if (!address) {
@@ -481,9 +668,9 @@ export default function SessionsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
+    <div className="container mx-auto px-4 py-8 max-h-screen overflow-hidden">
+      <div className="max-w-4xl mx-auto h-full flex flex-col">
+        <div className="mb-8 flex-shrink-0">
           <h1 className="text-3xl font-bold mb-2">Sessions Dashboard</h1>
           <p className="text-gray-600">
             Create and manage mentoring sessions with token-based payments.
@@ -491,7 +678,7 @@ export default function SessionsPage() {
         </div>
 
         {/* Join Session by ID */}
-        <Card className="mb-6">
+        <Card className="mb-6 flex-shrink-0">
           <CardHeader>
             <CardTitle>Join Session by ID</CardTitle>
             <CardDescription>Enter a session ID to join directly</CardDescription>
@@ -512,43 +699,133 @@ export default function SessionsPage() {
           </CardContent>
         </Card>
 
+        {/* Join Session Dialog */}
+        <Dialog open={isJoinDialogOpen} onOpenChange={setIsJoinDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Join Session</DialogTitle>
+              <DialogDescription>
+                Join session #{selectedSession?.id} with the specified amount.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="session-id">Session ID</Label>
+                <Input
+                  id="session-id"
+                  value={selectedSession?.id || ''}
+                  disabled
+                  className="bg-gray-50"
+                />
+              </div>
+              <div>
+                <Label htmlFor="join-amount">Amount (Tokens)</Label>
+                <Input
+                  id="join-amount"
+                  type="number"
+                  step="0.00001"
+                  value={joinAmount}
+                  onChange={(e) => setJoinAmount(e.target.value)}
+                  placeholder="0.0001"
+                />
+                <p className="text-sm text-gray-600 mt-1">
+                  Minimum required:{' '}
+                  {selectedSession ? formatEther(selectedSession.amountPerParticipant) : '0'} tokens
+                </p>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-medium">Your Token Balance</Label>
+                  <p className="text-sm text-gray-600">
+                    {tokenBalance ? formatEther(tokenBalance) : '0'} tokens available
+                  </p>
+                </div>
+                <Badge variant="outline">
+                  {tokenBalance ? formatEther(tokenBalance) : '0'} MOCK
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-medium">Token Allowance</Label>
+                  <p className="text-sm text-gray-600">
+                    {tokenAllowance ? formatEther(tokenAllowance) : '0'} tokens approved
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">
+                    {tokenAllowance ? formatEther(tokenAllowance) : '0'} MOCK
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => refetchTokenAllowance()}
+                    className="h-6 w-6 p-0"
+                  >
+                    🔄
+                  </Button>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleApproveForJoin}
+                  disabled={approvePending || approveConfirming}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  {approvePending || approveConfirming ? 'Approving...' : 'Approve Tokens'}
+                </Button>
+                <Button
+                  onClick={handleJoinSession}
+                  disabled={joinPending || joinConfirming || !joinAmount}
+                  className="flex-1"
+                >
+                  {joinPending || joinConfirming ? 'Joining...' : 'Join Session'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Session Details View */}
         {viewSession && (
-          <Card className="mb-6">
+          <Card className="mb-6 flex-shrink-0">
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                Session #{viewSession.id} Details
-                <Button variant="outline" size="sm" onClick={closeViewSession}>
-                  Close
-                </Button>
-              </CardTitle>
-              <CardDescription>Complete session information</CardDescription>
+              <CardTitle>Session Details</CardTitle>
+              <Button variant="ghost" size="sm" onClick={closeViewSession} className="ml-auto">
+                ✕
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
                 <div>
+                  <Label className="text-sm font-medium">Session ID</Label>
+                  <p className="text-sm text-gray-600">#{viewSession.id}</p>
+                </div>
+                <div>
                   <Label className="text-sm font-medium">Creator</Label>
-                  <p className="text-sm font-mono">{viewSession.creator}</p>
+                  <p className="text-sm text-gray-600 font-mono">
+                    {viewSession.creator.slice(0, 6)}...{viewSession.creator.slice(-4)}
+                  </p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Mentor</Label>
-                  <p className="text-sm font-mono">{viewSession.mentor}</p>
+                  <p className="text-sm text-gray-600 font-mono">
+                    {viewSession.mentor.slice(0, 6)}...{viewSession.mentor.slice(-4)}
+                  </p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Start Time</Label>
-                  <p className="text-sm">{formatTimestamp(viewSession.startTime)}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Max Participants</Label>
-                  <p className="text-sm">{Number(viewSession.maxParticipants)}</p>
+                  <p className="text-sm text-gray-600">{formatTimestamp(viewSession.startTime)}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Amount per Participant</Label>
-                  <p className="text-sm">{formatEther(viewSession.amountPerParticipant)} ETH</p>
+                  <p className="text-sm text-gray-600">
+                    {formatEther(viewSession.amountPerParticipant)} ETH
+                  </p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Total Deposit</Label>
-                  <p className="text-sm">{formatEther(viewSession.sessionDeposit)} ETH</p>
+                  <Label className="text-sm font-medium">Max Participants</Label>
+                  <p className="text-sm text-gray-600">{Number(viewSession.maxParticipants)}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Status</Label>
@@ -594,7 +871,7 @@ export default function SessionsPage() {
             <TabsTrigger value="manage">My Sessions</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="create" className="space-y-6">
+          <TabsContent value="create" className="flex-1 min-h-0">
             <Card>
               <CardHeader>
                 <CardTitle>Create New Session</CardTitle>
@@ -671,7 +948,7 @@ export default function SessionsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="total-amount">Total Amount (ETH)</Label>
+                    <Label htmlFor="total-amount">Total Amount to Pay (ETH)</Label>
                     <Input
                       id="total-amount"
                       type="number"
@@ -679,42 +956,39 @@ export default function SessionsPage() {
                       value={sessionFormData.amount}
                       onChange={(e) => handleInputChange('amount', e.target.value)}
                     />
+                    <p className="text-xs text-gray-500">
+                      For private sessions, this is the total amount you pay upfront
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="private-session">Private Session</Label>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="private-session"
+                        checked={sessionFormData.isPrivate}
+                        onCheckedChange={(checked) => handleInputChange('isPrivate', checked)}
+                      />
+                      <span className="text-sm text-gray-600">
+                        {sessionFormData.isPrivate ? 'Private' : 'Public'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="marketplace">Marketplace Visibility</Label>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="marketplace"
+                        checked={sessionFormData.marketplace}
+                        onCheckedChange={(checked) => handleInputChange('marketplace', checked)}
+                      />
+                      <span className="text-sm text-gray-600">
+                        {sessionFormData.marketplace ? 'Visible' : 'Hidden'}
+                      </span>
+                    </div>
                   </div>
                 </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="private-session">Private Session</Label>
-                      <p className="text-sm text-gray-600">
-                        Private sessions require you to pay for all participants upfront
-                      </p>
-                    </div>
-                    <Switch
-                      id="private-session"
-                      checked={sessionFormData.isPrivate}
-                      onCheckedChange={(checked) => handleInputChange('isPrivate', checked)}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="marketplace">Marketplace Visibility</Label>
-                      <p className="text-sm text-gray-600">
-                        Make this session visible in the marketplace
-                      </p>
-                    </div>
-                    <Switch
-                      id="marketplace"
-                      checked={sessionFormData.marketplace}
-                      onCheckedChange={(checked) => handleInputChange('marketplace', checked)}
-                    />
-                  </div>
-                </div>
-
-                <Separator />
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -754,7 +1028,7 @@ export default function SessionsPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="browse" className="space-y-6">
+          <TabsContent value="browse" className="flex-1 min-h-0">
             <Card>
               <CardHeader>
                 <CardTitle>Browse Sessions</CardTitle>
@@ -772,59 +1046,108 @@ export default function SessionsPage() {
                     <p className="text-sm text-gray-600">
                       {allSessions.length} session{allSessions.length === 1 ? '' : 's'} available
                     </p>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Session ID</TableHead>
-                          <TableHead>Mentor</TableHead>
-                          <TableHead>Start Time</TableHead>
-                          <TableHead>Participants</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {allSessions.map((session) => (
-                          <TableRow key={session.id}>
-                            <TableCell>#{session.id}</TableCell>
-                            <TableCell className="font-mono text-sm">
-                              {session.mentor.slice(0, 6)}...{session.mentor.slice(-4)}
-                            </TableCell>
-                            <TableCell>{formatTimestamp(session.startTime)}</TableCell>
-                            <TableCell>
-                              {session.participants.length}/{Number(session.maxParticipants)}
-                            </TableCell>
-                            <TableCell>{formatEther(session.amountPerParticipant)} ETH</TableCell>
-                            <TableCell>
-                              <Badge variant={getSessionStateVariant(session.state)}>
-                                {getSessionStateText(session.state)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  disabled={
-                                    session.state !== 0 ||
-                                    session.participants.length >= Number(session.maxParticipants)
-                                  }
-                                >
-                                  Join
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleViewSession(session)}
-                                >
-                                  View
-                                </Button>
-                              </div>
-                            </TableCell>
+                    <div className="border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Session ID</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Mentor</TableHead>
+                            <TableHead>Start Time</TableHead>
+                            <TableHead>Participants</TableHead>
+                            <TableHead>Amount</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Actions</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {allSessions.map((session) => {
+                            const isCreator =
+                              address && session.creator.toLowerCase() === address.toLowerCase();
+                            const isParticipant =
+                              address &&
+                              session.participants.some(
+                                (p) => p.toLowerCase() === address.toLowerCase(),
+                              );
+
+                            let userRole = '';
+                            if (isCreator) userRole = 'Creator';
+                            else if (isParticipant) userRole = 'Participant';
+
+                            return (
+                              <TableRow key={session.id}>
+                                <TableCell>#{session.id}</TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    {userRole && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {userRole}
+                                      </Badge>
+                                    )}
+                                    {session.isPrivateSession && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        Private
+                                      </Badge>
+                                    )}
+                                    {session.marketplace && (
+                                      <Badge variant="default" className="text-xs">
+                                        Marketplace
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {session.mentor.slice(0, 6)}...{session.mentor.slice(-4)}
+                                </TableCell>
+                                <TableCell>{formatTimestamp(session.startTime)}</TableCell>
+                                <TableCell>
+                                  {session.participants.length}/{Number(session.maxParticipants)}
+                                </TableCell>
+                                <TableCell>
+                                  {formatEther(session.amountPerParticipant)} ETH
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant={getSessionStateVariant(session.state)}>
+                                    {getSessionStateText(session.state)}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleJoinClick(session)}
+                                      disabled={
+                                        session.state !== 0 ||
+                                        session.participants.length >=
+                                          Number(session.maxParticipants) ||
+                                        (address &&
+                                          session.participants.some(
+                                            (p) => p.toLowerCase() === address.toLowerCase(),
+                                          ))
+                                      }
+                                    >
+                                      {address &&
+                                      session.participants.some(
+                                        (p) => p.toLowerCase() === address.toLowerCase(),
+                                      )
+                                        ? 'Joined'
+                                        : 'Join'}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleViewSession(session)}
+                                    >
+                                      View
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-8">
@@ -841,110 +1164,98 @@ export default function SessionsPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="manage" className="space-y-6">
+          <TabsContent value="manage" className="flex-1 min-h-0">
             <Card>
               <CardHeader>
                 <CardTitle>My Sessions</CardTitle>
                 <CardDescription>
-                  Manage your created sessions and track participation.
+                  Sessions you've created, joined, or are mentoring.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {loadingSessions ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-600">Loading your sessions...</p>
-                  </div>
-                ) : mySessions.length > 0 ? (
+                {mySessions.length > 0 ? (
                   <div className="space-y-4">
                     <p className="text-sm text-gray-600">
-                      You have {mySessions.length} session{mySessions.length === 1 ? '' : 's'}
+                      {mySessions.length} session{mySessions.length === 1 ? '' : 's'} found
                     </p>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Session ID</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Mentor</TableHead>
-                          <TableHead>Start Time</TableHead>
-                          <TableHead>Participants</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {mySessions.map((session) => {
-                          const isCreator =
-                            address && session.creator.toLowerCase() === address.toLowerCase();
-                          const isMentor =
-                            address && session.mentor.toLowerCase() === address.toLowerCase();
-                          const isParticipant =
-                            address &&
-                            session.participants.some(
-                              (p: string) => p.toLowerCase() === address.toLowerCase(),
-                            );
+                    <div className="border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Session ID</TableHead>
+                            <TableHead>Role</TableHead>
+                            <TableHead>Mentor</TableHead>
+                            <TableHead>Start Time</TableHead>
+                            <TableHead>Participants</TableHead>
+                            <TableHead>Amount</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {mySessions.map((session) => {
+                            const isCreator =
+                              address && session.creator.toLowerCase() === address.toLowerCase();
+                            const isMentor =
+                              address && session.mentor.toLowerCase() === address.toLowerCase();
+                            const isParticipant =
+                              address &&
+                              session.participants.some(
+                                (p: string) => p.toLowerCase() === address.toLowerCase(),
+                              );
 
-                          let roleText = '';
-                          if (isCreator) roleText = 'Creator';
-                          else if (isMentor) roleText = 'Mentor';
-                          else if (isParticipant) roleText = 'Participant';
+                            let roleText = '';
+                            if (isCreator) roleText = 'Creator';
+                            else if (isMentor) roleText = 'Mentor';
+                            else if (isParticipant) roleText = 'Participant';
 
-                          return (
-                            <TableRow key={session.id}>
-                              <TableCell>#{session.id}</TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
+                            return (
+                              <TableRow key={session.id}>
+                                <TableCell>#{session.id}</TableCell>
+                                <TableCell>
                                   <Badge variant="outline" className="text-xs">
                                     {roleText}
                                   </Badge>
-                                  {session.isPrivateSession && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      Private
-                                    </Badge>
-                                  )}
-                                  {session.marketplace && (
-                                    <Badge variant="default" className="text-xs">
-                                      Marketplace
-                                    </Badge>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell className="font-mono text-sm">
-                                {session.mentor.slice(0, 6)}...{session.mentor.slice(-4)}
-                              </TableCell>
-                              <TableCell>{formatTimestamp(session.startTime)}</TableCell>
-                              <TableCell>
-                                {session.participants.length}/{Number(session.maxParticipants)}
-                              </TableCell>
-                              <TableCell>{formatEther(session.amountPerParticipant)} ETH</TableCell>
-                              <TableCell>
-                                <Badge variant={getSessionStateVariant(session.state)}>
-                                  {getSessionStateText(session.state)}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex gap-2">
-                                  {isMentor && session.state === SessionState.Accepted && (
-                                    <Button size="sm" variant="outline">
-                                      Complete
-                                    </Button>
-                                  )}
-                                  {(isCreator || isMentor) && (
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => handleViewSession(session)}
-                                    >
-                                      View
-                                    </Button>
-                                  )}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {session.mentor.slice(0, 6)}...{session.mentor.slice(-4)}
+                                </TableCell>
+                                <TableCell>{formatTimestamp(session.startTime)}</TableCell>
+                                <TableCell>
+                                  {session.participants.length}/{Number(session.maxParticipants)}
+                                </TableCell>
+                                <TableCell>
+                                  {formatEther(session.amountPerParticipant)} ETH
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant={getSessionStateVariant(session.state)}>
+                                    {getSessionStateText(session.state)}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex gap-2">
+                                    {isMentor && session.state === SessionState.Accepted && (
+                                      <Button size="sm" variant="outline">
+                                        Complete
+                                      </Button>
+                                    )}
+                                    {(isCreator || isMentor) && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => handleViewSession(session)}
+                                      >
+                                        View
+                                      </Button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-8">
