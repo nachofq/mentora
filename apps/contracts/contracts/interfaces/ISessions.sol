@@ -10,15 +10,15 @@ pragma solidity 0.8.28;
  * @dev Interface for the main Mentora contract functions
  */
 interface ISessions {
-    // Enum for lobby states
+    // Enum for session states
     enum SessionState {
-        Created, // Sessioin created, waiting for participants
+        Created, // Session created, waiting for participants
         Accepted, // Mentor accepted, funds locked
         Cancelled, // Mentor cancelled, funds returned
         Completed // Final state - payment completed successfully
     }
 
-    // Struct to represent a lobby
+    // Struct to represent a session
     struct Session {
         address creator; // Who created the session
         address mentor; // Who will receive the payment
@@ -28,7 +28,7 @@ interface ISessions {
         uint256 maxParticipants; // Maximum number of participants
         address[] participants; // List of current participants
         mapping(address => uint256) participantDeposits; // Amount each participant deposited
-        SessionState state; // Current state of the lobby
+        SessionState state; // Current state of the Session
         uint256 sessionDeposited; // Total amount deposited
         bool isPrivateSession; // default false;
         bool marketplace; // default false;
@@ -79,9 +79,9 @@ interface ISessions {
 
     
 
-    /*function acceptSession(uint256 sessionId) external;
+    function acceptSession(uint256 _sessionId) external;
+    
+    function cancelSession(uint256 _sessionId) external;
 
-    function cancelSession(uint256 sessionId) external;
-
-    function abandonSession(uint256 sessionId) external; */
+    function abandonSession(uint256 _sessionId) external;
 }

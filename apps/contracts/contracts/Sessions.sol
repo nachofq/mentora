@@ -17,24 +17,27 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
 
     uint256 constant PROPORTION = 10000;
 
-    uint256 public _sessionCounter;
-    uint256 public _totalDeposited;
+    uint256 public sessionCounter;
+    uint256 public totalDeposited;
     uint256 public fee;
     
     Mentors mentors;
 
+    error OnlyMentor();
     error SessionError();
     error WithdrawError();
     error SessionIsFull();
     error SessionNotOpen();
     error MentorNotValid();
     error IncorrectAmount();
+    error SessionNotExists();
     error IncorrectDeposit();
     error IsPrivateSession();
     error IncorrectStartTime();
     error MissingCretorAddress();
     error AddressIsParticipant();
     error NotEnoughParticipants();
+    error SessionCantBeCancelled();
     error IncorrectMaxParticipants();
     error IncorrectParticipantsLength();
     
@@ -69,7 +72,7 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         require(_amount >= _minAmountPerParticipant, IncorrectDeposit());
 
         // Create the session
-        sessionId = _sessionCounter++;
+        sessionId = sessionCounter++;
         Session storage newSession = sessions[sessionId];
         
         // If private then we need to deposit the entire session amount
@@ -78,7 +81,7 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
             require(_amount >= _minAmountPerParticipant * participants.length);
         }
 
-        _totalDeposited += _amount;
+        totalDeposited += _amount;
 
         newSession.creator = msg.sender;
         newSession.mentor = _mentorAddress;
@@ -91,6 +94,9 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         newSession.sessionDeposited += _amount;
         newSession.isPrivateSession = _isPrivate;
         newSession.marketplace = _marketplace;
+
+        // Adding creator
+        newSession.participants.push(msg.sender);
 
         token.safeTransferFrom(msg.sender, address(this), _amount);
 
@@ -129,7 +135,7 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
 
         token.safeTransferFrom(msg.sender, address(this), _amount);
 
-        emit SessionsEvents.ParticipantJoined(
+        emit LogParticipantJoined(
             _sessionId,
             msg.sender,
             _amount,
@@ -137,13 +143,33 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         );
     } 
 
+    function acceptSession(uint256 _sessionId) external override {
+        Session storage session = sessions[_sessionId];
+
+        // Validations
+        require(session.state == SessionState.Created, SessionNotExists());
+        require(
+            session.state == SessionState.Created,
+            "Lobby cannot be accepted in current state"
+        );
+        require(msg.sender == session.mentor, "Only session mentor can accept");
+
+        // Change state to accepted - funds are now locked
+        session.state = SessionState.Accepted;
+
+        emit SessionsEvents.LogSessionAccepted(
+            _sessionId,
+            session.mentor,
+            session.sessionDeposited
+        );
+    }
+
     function completeSession(uint256 _sessionId) 
         external 
     {
         Session storage session = sessions[_sessionId];
 
         // Validations
-        //require(lobby.id != 0, "Lobby does not exist");
         require(
             session.state == SessionState.Accepted,
             "Lobby must be accepted to be completed"
@@ -170,11 +196,94 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         emit LogSessionCompleted(_sessionId, session.mentor, totalPayment);
     }
 
+    function cancelSession(uint256 _sessionId) external override {
+        Session storage session = sessions[_sessionId];
+
+        // Validations
+        require(session.state == SessionState.Created, SessionNotExists());
+        require(
+            session.state == SessionState.Created ||
+            session.state == SessionState.Accepted,
+            SessionCantBeCancelled()
+        );
+        require(msg.sender == session.mentor, OnlyMentor());
+
+        uint256 totalRefunded = 0;
+
+        // We need a more robust mechanism for recovering the users' funds.
+        // Refund all participants
+        for (uint256 i = 0; i < session.participants.length; i++) {
+            address participant = session.participants[i];
+            uint256 depositAmount = session.participantDeposits[participant];
+
+            if (depositAmount > 0) {
+                // Reset participant's deposit before transfer (reentrancy protection)
+                session.participantDeposits[participant] = 0;
+                totalRefunded += depositAmount;
+
+                token.safeTransfer(participant, depositAmount);
+
+                emit LogFundsRefunded(
+                    _sessionId,
+                    participant,
+                    depositAmount
+                );
+            }
+        }
+
+        // Update lobby state
+        session.state = SessionState.Cancelled;
+        totalDeposited -= totalRefunded;
+        session.sessionDeposited = 0;
+
+        emit LogLobbyCancelled(_sessionId, session.mentor, totalRefunded);
+    }
+
+    function abandonSession(uint256 _sessionId) external override {
+        Session storage session = sessions[_sessionId];
+
+        // Validations
+        require(session.state == SessionState.Created, SessionNotExists());
+        require(
+            session.state == SessionState.Created,
+            "Cannot abandon lobby after it has been accepted"
+        );
+        require(
+            session.participantDeposits[msg.sender] > 0,
+            "Not a participant in this lobby"
+        );
+
+        uint256 refundAmount = session.participantDeposits[msg.sender];
+
+        // Reset participant's deposit before transfer (reentrancy protection)
+        session.participantDeposits[msg.sender] = 0;
+        session.sessionDeposited -= refundAmount;
+
+        // Remove participant from the participants array
+        uint256 participantsLength = session.participants.length;
+        for (uint256 i = 0; i < participantsLength; i++) {
+            if (session.participants[i] == msg.sender) {
+                // Move the last element to the position of the element to remove
+                session.participants[i] = session.participants[
+                    participantsLength - 1
+                ];
+                // Remove the last element
+                session.participants.pop();
+                break;
+            }
+        }
+
+        // Transfer refund to participant
+        token.safeTransfer(msg.sender, refundAmount);
+
+        emit LogParticipantAbandoned(_sessionId, msg.sender, refundAmount);
+    }
+
     function withdraw(IERC20 _token, address recipient, uint256 amount) 
         onlyOwner
         public 
     {
-        uint256 mentoraFees = getContractBalance(_token) - _totalDeposited;
+        uint256 mentoraFees = getContractBalance(_token) - totalDeposited;
         require(amount <= mentoraFees, WithdrawError());
         _token.safeTransfer(recipient, amount);
 
@@ -202,7 +311,7 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         )
     {
         require(
-            _sessionId > 0 && _sessionId <= _sessionCounter,
+            _sessionId > 0 && _sessionId <= sessionCounter,
             SessionError()
         );
 
