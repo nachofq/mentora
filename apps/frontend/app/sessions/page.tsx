@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { arbitrumSepolia } from 'wagmi/chains';
@@ -150,8 +150,15 @@ export default function SessionsPage() {
     },
   });
 
+  // Force refetch all session data
+  const refetchSessions = () => {
+    session1.refetch();
+    session2.refetch();
+    session3.refetch();
+  };
+
   // Load sessions from contract
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     console.log(
       'loadSessions called, sessionCounter:',
       sessionCounter,
@@ -225,14 +232,14 @@ export default function SessionsPage() {
       `Final result: Loaded ${sessionsData.length} out of ${sessionCounter} sessions`,
       sessionsData,
     );
-  };
+  }, [sessionCounter, session1.data, session2.data, session3.data]);
 
   // Load sessions when sessionCounter changes or session queries complete
   useEffect(() => {
     if (sessionCounter !== undefined) {
       loadSessions();
     }
-  }, [sessionCounter, session1.data, session2.data, session3.data]);
+  }, [sessionCounter, session1.data, session2.data, session3.data, loadSessions]);
 
   // Filter sessions for different tabs
   const allSessions = sessions; // Show all sessions in Browse section
@@ -428,6 +435,27 @@ export default function SessionsPage() {
     }
   };
 
+  const handleAbandonSession = async (sessionId: number) => {
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      console.log('Abandoning session:', sessionId);
+      abandonSession({
+        address: CONTRACT_ADDRESSES.SESSIONS,
+        abi: SESSIONS_ABI,
+        functionName: 'abandonSession',
+        args: [BigInt(sessionId)],
+        chainId: arbitrumSepolia.id,
+      });
+    } catch (error) {
+      console.error('Error abandoning session:', error);
+      toast.error('Failed to abandon session');
+    }
+  };
+
   // Token approve transaction
   const {
     writeContract: approveToken,
@@ -464,6 +492,19 @@ export default function SessionsPage() {
   const { isLoading: joinConfirming, isSuccess: joinConfirmed } = useWaitForTransactionReceipt({
     hash: joinHash,
   });
+
+  // Abandon session transaction
+  const {
+    writeContract: abandonSession,
+    data: abandonHash,
+    isPending: abandonPending,
+    error: abandonError,
+  } = useWriteContract();
+
+  const { isLoading: abandonConfirming, isSuccess: abandonConfirmed } =
+    useWaitForTransactionReceipt({
+      hash: abandonHash,
+    });
 
   // Handle transaction states
   useEffect(() => {
@@ -520,6 +561,8 @@ export default function SessionsPage() {
         marketplace: false,
       });
       refetchTokenBalance();
+      // Force refetch sessions as if first time
+      refetchSessions();
     }
   }, [createConfirmed, refetchTokenBalance]);
 
@@ -551,8 +594,8 @@ export default function SessionsPage() {
       setJoinAmount('');
       refetchTokenBalance();
       refetchTokenAllowance();
-      // Reload sessions to update participant count
-      loadSessions();
+      // Force refetch sessions as if first time
+      refetchSessions();
     }
   }, [joinConfirmed, refetchTokenBalance, refetchTokenAllowance]);
 
@@ -584,6 +627,35 @@ export default function SessionsPage() {
       }
     }
   }, [joinError]);
+
+  // Handle abandon session transaction states
+  useEffect(() => {
+    if (abandonPending) {
+      toast.loading('Abandoning session...', { id: 'abandon-session' });
+    }
+  }, [abandonPending]);
+
+  useEffect(() => {
+    if (abandonConfirming) {
+      toast.loading('Waiting for abandon confirmation...', { id: 'abandon-session' });
+    }
+  }, [abandonConfirming]);
+
+  useEffect(() => {
+    if (abandonConfirmed) {
+      toast.success('Successfully abandoned session! Your deposit has been refunded.', {
+        id: 'abandon-session',
+      });
+      // Force refetch sessions as if first time
+      refetchSessions();
+    }
+  }, [abandonConfirmed]);
+
+  useEffect(() => {
+    if (abandonError) {
+      toast.error('Failed to abandon session', { id: 'abandon-session' });
+    }
+  }, [abandonError]);
 
   const handleApproveTokens = async () => {
     if (!address) {
@@ -764,7 +836,7 @@ export default function SessionsPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-h-screen overflow-hidden">
-      <div className="max-w-4xl mx-auto h-full flex flex-col">
+      <div className="max-w-6xl mx-auto h-full flex flex-col">
         <div className="mb-8 flex-shrink-0">
           <h1 className="text-3xl font-bold mb-2">Sessions Dashboard</h1>
           <p className="text-gray-600">
@@ -1141,27 +1213,29 @@ export default function SessionsPage() {
                     <p className="text-sm text-gray-600">
                       {allSessions.length} session{allSessions.length === 1 ? '' : 's'} available
                     </p>
-                    <div className="border rounded-lg">
+                    <div className="border rounded-lg overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Session ID</TableHead>
-                            <TableHead>Mentor</TableHead>
-                            <TableHead>Start Time</TableHead>
-                            <TableHead>Participants</TableHead>
-                            <TableHead>Amount</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Actions</TableHead>
+                            <TableHead className="min-w-[80px]">Session ID</TableHead>
+                            <TableHead className="min-w-[120px]">Mentor</TableHead>
+                            <TableHead className="min-w-[140px]">Start Time</TableHead>
+                            <TableHead className="min-w-[100px]">Participants</TableHead>
+                            <TableHead className="min-w-[100px]">Amount</TableHead>
+                            <TableHead className="min-w-[80px]">Status</TableHead>
+                            <TableHead className="min-w-[140px]">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {allSessions.map((session) => (
                             <TableRow key={session.id}>
-                              <TableCell>#{session.id}</TableCell>
+                              <TableCell className="font-medium">#{session.id}</TableCell>
                               <TableCell className="font-mono text-sm">
                                 {session.mentor.slice(0, 6)}...{session.mentor.slice(-4)}
                               </TableCell>
-                              <TableCell>{formatTimestamp(session.startTime)}</TableCell>
+                              <TableCell className="text-sm">
+                                {formatTimestamp(session.startTime)}
+                              </TableCell>
                               <TableCell>
                                 {session.participants.length}/{Number(session.maxParticipants)}
                               </TableCell>
@@ -1172,7 +1246,7 @@ export default function SessionsPage() {
                                 </Badge>
                               </TableCell>
                               <TableCell>
-                                <div className="flex gap-2">
+                                <div className="flex gap-1">
                                   <Button
                                     size="sm"
                                     onClick={() => handleJoinClick(session)}
@@ -1237,18 +1311,18 @@ export default function SessionsPage() {
                     <p className="text-sm text-gray-600">
                       {mySessions.length} session{mySessions.length === 1 ? '' : 's'} found
                     </p>
-                    <div className="border rounded-lg">
+                    <div className="border rounded-lg overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Session ID</TableHead>
-                            <TableHead>Role</TableHead>
-                            <TableHead>Mentor</TableHead>
-                            <TableHead>Start Time</TableHead>
-                            <TableHead>Participants</TableHead>
-                            <TableHead>Amount</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Actions</TableHead>
+                            <TableHead className="min-w-[80px]">Session ID</TableHead>
+                            <TableHead className="min-w-[80px]">Role</TableHead>
+                            <TableHead className="min-w-[120px]">Mentor</TableHead>
+                            <TableHead className="min-w-[140px]">Start Time</TableHead>
+                            <TableHead className="min-w-[100px]">Participants</TableHead>
+                            <TableHead className="min-w-[100px]">Amount</TableHead>
+                            <TableHead className="min-w-[80px]">Status</TableHead>
+                            <TableHead className="min-w-[160px]">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1270,7 +1344,7 @@ export default function SessionsPage() {
 
                             return (
                               <TableRow key={session.id}>
-                                <TableCell>#{session.id}</TableCell>
+                                <TableCell className="font-medium">#{session.id}</TableCell>
                                 <TableCell>
                                   <Badge variant="outline" className="text-xs">
                                     {roleText}
@@ -1279,7 +1353,9 @@ export default function SessionsPage() {
                                 <TableCell className="font-mono text-sm">
                                   {session.mentor.slice(0, 6)}...{session.mentor.slice(-4)}
                                 </TableCell>
-                                <TableCell>{formatTimestamp(session.startTime)}</TableCell>
+                                <TableCell className="text-sm">
+                                  {formatTimestamp(session.startTime)}
+                                </TableCell>
                                 <TableCell>
                                   {session.participants.length}/{Number(session.maxParticipants)}
                                 </TableCell>
@@ -1292,21 +1368,38 @@ export default function SessionsPage() {
                                   </Badge>
                                 </TableCell>
                                 <TableCell>
-                                  <div className="flex gap-2">
+                                  <div className="flex gap-1 flex-wrap">
                                     {isParticipant &&
                                       session.state === SessionState.Accepted && ( // TODO: add
                                         <Button
                                           size="sm"
                                           onClick={() => handleAttendSession(session.id)}
                                           disabled={attendingSession === session.id}
+                                          className="mb-1"
                                         >
                                           {attendingSession === session.id
                                             ? 'Joining...'
                                             : 'Attend'}
                                         </Button>
                                       )}
+
+                                    {/* Abandon button for participants when session is created */}
+                                    {isParticipant && session.state === SessionState.Created && (
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleAbandonSession(session.id)}
+                                        disabled={abandonPending || abandonConfirming}
+                                        variant="destructive"
+                                        className="mb-1"
+                                      >
+                                        {abandonPending || abandonConfirming
+                                          ? 'Abandoning...'
+                                          : 'Abandon'}
+                                      </Button>
+                                    )}
+
                                     {isMentor && session.state === SessionState.Accepted && (
-                                      <Button size="sm" variant="outline">
+                                      <Button size="sm" variant="outline" className="mb-1">
                                         Complete
                                       </Button>
                                     )}
@@ -1315,6 +1408,7 @@ export default function SessionsPage() {
                                         size="sm"
                                         variant="ghost"
                                         onClick={() => handleViewSession(session)}
+                                        className="mb-1"
                                       >
                                         View
                                       </Button>
