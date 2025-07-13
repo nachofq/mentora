@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { LivekitClient } from './clients/livekit.client';
+import { CreateTokenDto } from './dto/create-token.dto';
 
 @Injectable()
 export class LivekitService {
@@ -28,9 +29,8 @@ export class LivekitService {
     await this.livekitClient.deleteRoom(name);
   }
 
-  async createToken() {
-    
-    const token = await this.livekitClient.createToken();
-    return token;
+  async createToken(createTokenDto: CreateTokenDto) {
+    const token = await this.livekitClient.createToken(createTokenDto);
+    return { token };
   }
 }

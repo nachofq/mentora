@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { RoomServiceClient, AccessToken } from 'livekit-server-sdk';
+import { CreateTokenDto } from '../dto/create-token.dto';
 
 @Injectable()
 export class LivekitClient {
@@ -25,14 +26,14 @@ export class LivekitClient {
     await this.roomService.deleteRoom(name);
   }
 
-  async createToken() {
+  async createToken(createTokenDto: CreateTokenDto) {
     // If this room doesn't exist, it'll be automatically created when the first
     // participant joins
-    const roomName = 'quickstart-room';
+    const roomName = createTokenDto.sessionId;
     // Identifier to be used for participant.
     // It's available as LocalParticipant.identity with livekit-client SDK
 
-    const participantName = Math.random().toString(36).substring(2, 15);
+    const participantName = createTokenDto.address;
 
     const at = new AccessToken(
       process.env.LIVEKIT_API_KEY,
