@@ -30,11 +30,11 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
     error SessionNotOpen();
     error MentorNotValid();
     error IncorrectAmount();
-    error SessionNotExists();
     error IncorrectDeposit();
     error IsPrivateSession();
     error IncorrectStartTime();
     error MissingCretorAddress();
+    error SessionDoesNotExists();
     error AddressIsParticipant();
     error NotEnoughParticipants();
     error SessionCantBeCancelled();
@@ -147,7 +147,7 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         Session storage session = sessions[_sessionId];
 
         // Validations
-        require(session.state == SessionState.Created, SessionNotExists());
+        require(session.state == SessionState.Created, SessionDoesNotExists());
         require(
             session.state == SessionState.Created,
             "Lobby cannot be accepted in current state"
