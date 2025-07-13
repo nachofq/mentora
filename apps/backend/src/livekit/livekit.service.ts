@@ -31,6 +31,6 @@ export class LivekitService {
 
   async createToken(createTokenDto: CreateTokenDto) {
     const token = await this.livekitClient.createToken(createTokenDto);
-    return token;
+    return { token };
   }
 }

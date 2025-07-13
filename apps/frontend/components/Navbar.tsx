@@ -31,9 +31,6 @@ export function Navbar() {
           </Link>
         </div>
         <div className={styles.navLinks}>
-          <Link href="/connection" className={styles.navLink}>
-            Connection
-          </Link>
           <Link href="/mentors" className={styles.navLink}>
             Mentors
           </Link>
