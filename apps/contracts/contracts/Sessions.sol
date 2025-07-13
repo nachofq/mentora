@@ -162,7 +162,7 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         // Change state to accepted - funds are now locked
         session.state = SessionState.Accepted;
 
-        emit SessionsEvents.LogSessionAccepted(
+        emit LogSessionAccepted(
             _sessionId,
             session.mentor,
             session.sessionDeposited
@@ -195,8 +195,8 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         }
         // Get app fees.
         totalPayment = totalPayment - ((totalPayment * fee) / PROPORTION);
-        // Transfer all funds to the mentor
-        token.safeTransfer(address(this), totalPayment);
+        // Transfer remaining funds to the mentor
+        token.safeTransfer(msg.sender, totalPayment);
         
         emit LogSessionCompleted(_sessionId, session.mentor, totalPayment);
     }
