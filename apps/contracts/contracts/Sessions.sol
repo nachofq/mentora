@@ -32,12 +32,17 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
     error IncorrectAmount();
     error IncorrectDeposit();
     error IsPrivateSession();
+    error NoFundsAvailable();
     error IncorrectStartTime();
     error MissingCretorAddress();
     error SessionDoesNotExists();
     error AddressIsParticipant();
     error NotEnoughParticipants();
+    error CannotAbandonedSession();
+    error SesssionMustBeAccepted();
     error SessionCantBeCancelled();
+    error SenderIsNotParticipant();
+    error SessionCanNotBeAccepted();
     error IncorrectMaxParticipants();
     error IncorrectParticipantsLength();
     
@@ -108,7 +113,7 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         Session storage session = sessions[_sessionId];
 
         // Validations
-        require(_sessionId != 0, "Lobby does not exist");
+        require(_sessionId != 0, SessionDoesNotExists());
         require(
             session.state == SessionState.Created,
             SessionNotOpen()
@@ -150,9 +155,9 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         require(session.state == SessionState.Created, SessionDoesNotExists());
         require(
             session.state == SessionState.Created,
-            "Lobby cannot be accepted in current state"
+            SessionCanNotBeAccepted()
         );
-        require(msg.sender == session.mentor, "Only session mentor can accept");
+        require(msg.sender == session.mentor, OnlyMentor());
 
         // Change state to accepted - funds are now locked
         session.state = SessionState.Accepted;
@@ -172,10 +177,10 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         // Validations
         require(
             session.state == SessionState.Accepted,
-            "Lobby must be accepted to be completed"
+            SesssionMustBeAccepted()
         );
-        require(msg.sender == session.mentor, "Only session mentor can complete");
-        require(session.sessionDeposited > 0, "No funds to transfer");
+        require(msg.sender == session.mentor, OnlyMentor());
+        require(session.sessionDeposited > 0, NoFundsAvailable());
 
         uint256 totalPayment = session.sessionDeposited;
 
@@ -200,7 +205,7 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         Session storage session = sessions[_sessionId];
 
         // Validations
-        require(session.state == SessionState.Created, SessionNotExists());
+        require(session.state == SessionState.Created, SessionDoesNotExists());
         require(
             session.state == SessionState.Created ||
             session.state == SessionState.Accepted,
@@ -243,14 +248,14 @@ contract Sessions is Ownable, Pausable, ISessions, SessionsEvents {
         Session storage session = sessions[_sessionId];
 
         // Validations
-        require(session.state == SessionState.Created, SessionNotExists());
+        require(session.state == SessionState.Created, SessionDoesNotExists());
         require(
             session.state == SessionState.Created,
-            "Cannot abandon lobby after it has been accepted"
+            CannotAbandonedSession()
         );
         require(
             session.participantDeposits[msg.sender] > 0,
-            "Not a participant in this lobby"
+            SenderIsNotParticipant()
         );
 
         uint256 refundAmount = session.participantDeposits[msg.sender];
