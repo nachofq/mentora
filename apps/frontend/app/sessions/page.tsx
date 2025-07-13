@@ -821,15 +821,17 @@ export default function SessionsPage() {
 
   if (!isConnected) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Card className="max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle>Connect Your Wallet</CardTitle>
-            <CardDescription>
-              Please connect your wallet to access the sessions dashboard.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="scrollable-page">
+        <div className="container mx-auto px-4 py-8">
+          <Card className="max-w-md mx-auto">
+            <CardHeader>
+              <CardTitle>Connect Your Wallet</CardTitle>
+              <CardDescription>
+                Please connect your wallet to access the sessions dashboard.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
       </div>
     );
   }
