@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@import "tw-animate-css";
+@import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -39,6 +39,19 @@ body > [data-rk] {
   max-height: calc(100vh - 5rem) !important;
   padding-top: 0 !important;
   margin-top: 5rem !important;
+}
+
+/* Scrollable page container for dashboard pages */
+.scrollable-page {
+  min-height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: 5rem; /* Account for fixed navbar */
+}
+
+.scrollable-page-content {
+  min-height: calc(100vh - 2rem);
+  padding: 1rem 0;
 }
 
 .header {

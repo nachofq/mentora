@@ -341,200 +341,206 @@ export default function OwnerPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-h-screen overflow-hidden">
-      <div className="max-w-4xl mx-auto h-full flex flex-col">
-        <div className="mb-8 flex-shrink-0">
-          <h1 className="text-3xl font-bold mb-2">Owner Dashboard</h1>
-          <p className="text-gray-600">Administrative functions and contract management.</p>
-        </div>
-
-        <ScrollArea className="flex-1">
-          <div className="space-y-6 pr-4">
-            {/* Contract Status */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Contract Status</CardTitle>
-                <CardDescription>View and manage the status of your contracts.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium">Mentors Contract</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant={mentorsPaused ? 'destructive' : 'default'}>
-                        {mentorsPaused ? 'Paused' : 'Active'}
-                      </Badge>
-                      <Button
-                        onClick={handleTogglePause}
-                        disabled={mentorsPausePending || mentorsPauseConfirming}
-                        variant="outline"
-                        size="sm"
-                      >
-                        {mentorsPaused ? 'Unpause' : 'Pause'}
-                      </Button>
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Sessions Contract</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="default">Always Active</Badge>
-                      <p className="text-xs text-gray-500">No pause functionality</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Blacklist Management */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Blacklist Management</CardTitle>
-                <CardDescription>Manage mentor blacklist status.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="blacklist-address">Mentor Address</Label>
-                    <Input
-                      id="blacklist-address"
-                      placeholder="0x..."
-                      value={blacklistAddress}
-                      onChange={(e) => setBlacklistAddress(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Blacklist Status</Label>
-                    <div className="flex items-center gap-2">
-                      <Switch checked={blacklistFlag} onCheckedChange={setBlacklistFlag} />
-                      <span className="text-sm">
-                        {blacklistFlag ? 'Blacklisted' : 'Not Blacklisted'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <Button
-                  onClick={handleSetBlacklist}
-                  disabled={!blacklistAddress || blacklistPending || blacklistConfirming}
-                >
-                  {blacklistPending || blacklistConfirming ? 'Updating...' : 'Update Blacklist'}
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Fee Withdrawal */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Fee Withdrawal</CardTitle>
-                <CardDescription>
-                  Withdraw accumulated fees from the Sessions contract.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium">Contract Balance</Label>
-                    <p className="text-lg font-mono">
-                      {sessionsBalance ? formatEther(sessionsBalance) : '0'} MOCK
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Fee Rate</Label>
-                    <p className="text-lg">
-                      {sessionsFee ? `${sessionsFee.toString()}%` : 'Loading...'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="withdraw-amount">Amount to Withdraw</Label>
-                    <Input
-                      id="withdraw-amount"
-                      type="number"
-                      step="0.00001"
-                      placeholder="0.0"
-                      value={withdrawAmount}
-                      onChange={(e) => setWithdrawAmount(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="withdraw-recipient">Recipient Address</Label>
-                    <Input
-                      id="withdraw-recipient"
-                      placeholder="0x... (leave empty for owner)"
-                      value={withdrawRecipient}
-                      onChange={(e) => setWithdrawRecipient(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <Button
-                  onClick={handleWithdraw}
-                  disabled={
-                    !withdrawAmount ||
-                    parseFloat(withdrawAmount) <= 0 ||
-                    withdrawPending ||
-                    withdrawConfirming
-                  }
-                >
-                  {withdrawPending || withdrawConfirming ? 'Withdrawing...' : 'Withdraw Fees'}
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Token Management */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Token Management</CardTitle>
-                <CardDescription>Mint tokens for testing and development.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Button
-                  onClick={handleMintTokens}
-                  disabled={mintPending || mintConfirming}
-                  variant="outline"
-                >
-                  {mintPending || mintConfirming ? 'Minting...' : 'Mint 1000 MOCK Tokens'}
-                </Button>
-                <p className="text-sm text-gray-600">
-                  This will mint 1000 MOCK tokens to your wallet for testing purposes.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Contract Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Contract Information</CardTitle>
-                <CardDescription>View deployed contract addresses and details.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium">Mentors Contract</Label>
-                    <p className="text-xs text-gray-600 font-mono">{CONTRACT_ADDRESSES.MENTORS}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Sessions Contract</Label>
-                    <p className="text-xs text-gray-600 font-mono">{CONTRACT_ADDRESSES.SESSIONS}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Participants Contract</Label>
-                    <p className="text-xs text-gray-600 font-mono">
-                      {CONTRACT_ADDRESSES.PARTICIPANTS}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">MockERC20 Contract</Label>
-                    <p className="text-xs text-gray-600 font-mono">
-                      {CONTRACT_ADDRESSES.MOCK_ERC20}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+    <div className="scrollable-page">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold mb-2">Owner Dashboard</h1>
+            <p className="text-gray-600">Manage contract settings and monitor system activity.</p>
           </div>
-        </ScrollArea>
+
+          <ScrollArea className="flex-1">
+            <div className="space-y-6 pr-4">
+              {/* Contract Status */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Contract Status</CardTitle>
+                  <CardDescription>View and manage the status of your contracts.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">Mentors Contract</Label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant={mentorsPaused ? 'destructive' : 'default'}>
+                          {mentorsPaused ? 'Paused' : 'Active'}
+                        </Badge>
+                        <Button
+                          onClick={handleTogglePause}
+                          disabled={mentorsPausePending || mentorsPauseConfirming}
+                          variant="outline"
+                          size="sm"
+                        >
+                          {mentorsPaused ? 'Unpause' : 'Pause'}
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Sessions Contract</Label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="default">Always Active</Badge>
+                        <p className="text-xs text-gray-500">No pause functionality</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Blacklist Management */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Blacklist Management</CardTitle>
+                  <CardDescription>Manage mentor blacklist status.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="blacklist-address">Mentor Address</Label>
+                      <Input
+                        id="blacklist-address"
+                        placeholder="0x..."
+                        value={blacklistAddress}
+                        onChange={(e) => setBlacklistAddress(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Blacklist Status</Label>
+                      <div className="flex items-center gap-2">
+                        <Switch checked={blacklistFlag} onCheckedChange={setBlacklistFlag} />
+                        <span className="text-sm">
+                          {blacklistFlag ? 'Blacklisted' : 'Not Blacklisted'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleSetBlacklist}
+                    disabled={!blacklistAddress || blacklistPending || blacklistConfirming}
+                  >
+                    {blacklistPending || blacklistConfirming ? 'Updating...' : 'Update Blacklist'}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Fee Withdrawal */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Fee Withdrawal</CardTitle>
+                  <CardDescription>
+                    Withdraw accumulated fees from the Sessions contract.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">Contract Balance</Label>
+                      <p className="text-lg font-mono">
+                        {sessionsBalance ? formatEther(sessionsBalance) : '0'} MOCK
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Fee Rate</Label>
+                      <p className="text-lg">
+                        {sessionsFee ? `${sessionsFee.toString()}%` : 'Loading...'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="withdraw-amount">Amount to Withdraw</Label>
+                      <Input
+                        id="withdraw-amount"
+                        type="number"
+                        step="0.00001"
+                        placeholder="0.0"
+                        value={withdrawAmount}
+                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="withdraw-recipient">Recipient Address</Label>
+                      <Input
+                        id="withdraw-recipient"
+                        placeholder="0x... (leave empty for owner)"
+                        value={withdrawRecipient}
+                        onChange={(e) => setWithdrawRecipient(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={handleWithdraw}
+                    disabled={
+                      !withdrawAmount ||
+                      parseFloat(withdrawAmount) <= 0 ||
+                      withdrawPending ||
+                      withdrawConfirming
+                    }
+                  >
+                    {withdrawPending || withdrawConfirming ? 'Withdrawing...' : 'Withdraw Fees'}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Token Management */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Token Management</CardTitle>
+                  <CardDescription>Mint tokens for testing and development.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Button
+                    onClick={handleMintTokens}
+                    disabled={mintPending || mintConfirming}
+                    variant="outline"
+                  >
+                    {mintPending || mintConfirming ? 'Minting...' : 'Mint 1000 MOCK Tokens'}
+                  </Button>
+                  <p className="text-sm text-gray-600">
+                    This will mint 1000 MOCK tokens to your wallet for testing purposes.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Contract Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Contract Information</CardTitle>
+                  <CardDescription>View deployed contract addresses and details.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">Mentors Contract</Label>
+                      <p className="text-xs text-gray-600 font-mono">
+                        {CONTRACT_ADDRESSES.MENTORS}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Sessions Contract</Label>
+                      <p className="text-xs text-gray-600 font-mono">
+                        {CONTRACT_ADDRESSES.SESSIONS}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Participants Contract</Label>
+                      <p className="text-xs text-gray-600 font-mono">
+                        {CONTRACT_ADDRESSES.PARTICIPANTS}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">MockERC20 Contract</Label>
+                      <p className="text-xs text-gray-600 font-mono">
+                        {CONTRACT_ADDRESSES.MOCK_ERC20}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </ScrollArea>
+        </div>
       </div>
     </div>
   );

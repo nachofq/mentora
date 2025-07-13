@@ -835,521 +835,407 @@ export default function SessionsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-h-screen overflow-hidden">
-      <div className="max-w-6xl mx-auto h-full flex flex-col">
-        <div className="mb-8 flex-shrink-0">
-          <h1 className="text-3xl font-bold mb-2">Sessions Dashboard</h1>
-          <p className="text-gray-600">
-            Create and manage mentoring sessions with token-based payments.
-          </p>
-        </div>
+    <div className="scrollable-page">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold mb-2">Sessions Dashboard</h1>
+            <p className="text-gray-600">
+              Create and manage mentoring sessions with token-based payments.
+            </p>
+          </div>
 
-        {/* Join Session by ID */}
-        <Card className="mb-6 flex-shrink-0">
-          <CardHeader>
-            <CardTitle>Join Session by ID</CardTitle>
-            <CardDescription>Enter a session ID to join directly</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4">
-              <Input
-                placeholder="Enter session ID (e.g., 1, 2, 3...)"
-                value={joinSessionId}
-                onChange={(e) => setJoinSessionId(e.target.value)}
-                type="number"
-                min="1"
-              />
-              <Button onClick={handleJoinSessionById} disabled={!joinSessionId}>
-                Join Session
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Join Session Dialog */}
-        <Dialog open={isJoinDialogOpen} onOpenChange={setIsJoinDialogOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Join Session</DialogTitle>
-              <DialogDescription>
-                Join session #{selectedSession?.id} with the specified amount.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="session-id">Session ID</Label>
-                <Input
-                  id="session-id"
-                  value={selectedSession?.id || ''}
-                  disabled
-                  className="bg-gray-50"
-                />
-              </div>
-              <div>
-                <Label htmlFor="join-amount">Amount (Tokens)</Label>
-                <Input
-                  id="join-amount"
-                  type="number"
-                  step="0.00001"
-                  value={joinAmount}
-                  onChange={(e) => setJoinAmount(e.target.value)}
-                  placeholder="0.0001"
-                />
-                <p className="text-sm text-gray-600 mt-1">
-                  Minimum required:{' '}
-                  {selectedSession ? formatEther(selectedSession.amountPerParticipant) : '0'} tokens
-                </p>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-sm font-medium">Your Token Balance</Label>
-                  <p className="text-sm text-gray-600">
-                    {tokenBalance ? formatEther(tokenBalance) : '0'} tokens available
-                  </p>
-                </div>
-                <Badge variant="outline">
-                  {tokenBalance ? formatEther(tokenBalance) : '0'} MOCK
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-sm font-medium">Token Allowance</Label>
-                  <p className="text-sm text-gray-600">
-                    {tokenAllowance ? formatEther(tokenAllowance) : '0'} tokens approved
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">
-                    {tokenAllowance ? formatEther(tokenAllowance) : '0'} MOCK
-                  </Badge>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => refetchTokenAllowance()}
-                    className="h-6 w-6 p-0"
-                  >
-                    🔄
-                  </Button>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleApproveForJoin}
-                  disabled={approvePending || approveConfirming}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  {approvePending || approveConfirming ? 'Approving...' : 'Approve Tokens'}
-                </Button>
-                <Button
-                  onClick={handleJoinSession}
-                  disabled={joinPending || joinConfirming || !joinAmount}
-                  className="flex-1"
-                >
-                  {joinPending || joinConfirming ? 'Joining...' : 'Join Session'}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Session Details View */}
-        {viewSession && (
+          {/* Join Session by ID */}
           <Card className="mb-6 flex-shrink-0">
             <CardHeader>
-              <CardTitle>Session Details</CardTitle>
-              <Button variant="ghost" size="sm" onClick={closeViewSession} className="ml-auto">
-                ✕
-              </Button>
+              <CardTitle>Join Session by ID</CardTitle>
+              <CardDescription>Enter a session ID to join directly</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm font-medium">Session ID</Label>
-                  <p className="text-sm text-gray-600">#{viewSession.id}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Creator</Label>
-                  <p className="text-sm text-gray-600 font-mono">
-                    {viewSession.creator.slice(0, 6)}...{viewSession.creator.slice(-4)}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Mentor</Label>
-                  <p className="text-sm text-gray-600 font-mono">
-                    {viewSession.mentor.slice(0, 6)}...{viewSession.mentor.slice(-4)}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Start Time</Label>
-                  <p className="text-sm text-gray-600">{formatTimestamp(viewSession.startTime)}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Amount per Participant</Label>
-                  <p className="text-sm text-gray-600">
-                    {formatEther(viewSession.amountPerParticipant)} ETH
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Max Participants</Label>
-                  <p className="text-sm text-gray-600">{Number(viewSession.maxParticipants)}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Status</Label>
-                  <Badge variant={getSessionStateVariant(viewSession.state)}>
-                    {getSessionStateText(viewSession.state)}
-                  </Badge>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Type</Label>
-                  <div className="flex gap-2">
-                    {viewSession.isPrivateSession && <Badge variant="secondary">Private</Badge>}
-                    {viewSession.marketplace && <Badge variant="default">Marketplace</Badge>}
-                  </div>
-                </div>
-              </div>
-
-              <Separator className="my-4" />
-
-              <div>
-                <Label className="text-sm font-medium">
-                  Participants ({viewSession.participants.length})
-                </Label>
-                <div className="mt-2 space-y-1">
-                  {viewSession.participants.length > 0 ? (
-                    viewSession.participants.map((participant, index) => (
-                      <p key={index} className="text-sm font-mono">
-                        {participant}
-                      </p>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">No participants yet</p>
-                  )}
-                </div>
+              <div className="flex gap-4">
+                <Input
+                  placeholder="Enter session ID (e.g., 1, 2, 3...)"
+                  value={joinSessionId}
+                  onChange={(e) => setJoinSessionId(e.target.value)}
+                  type="number"
+                  min="1"
+                />
+                <Button onClick={handleJoinSessionById} disabled={!joinSessionId}>
+                  Join Session
+                </Button>
               </div>
             </CardContent>
           </Card>
-        )}
 
-        <Tabs defaultValue="create" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="create">Create Session</TabsTrigger>
-            <TabsTrigger value="browse">Browse Sessions</TabsTrigger>
-            <TabsTrigger value="manage">My Sessions</TabsTrigger>
-          </TabsList>
+          {/* Join Session Dialog */}
+          <Dialog open={isJoinDialogOpen} onOpenChange={setIsJoinDialogOpen}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Join Session</DialogTitle>
+                <DialogDescription>
+                  Join session #{selectedSession?.id} with the specified amount.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="session-id">Session ID</Label>
+                  <Input
+                    id="session-id"
+                    value={selectedSession?.id || ''}
+                    disabled
+                    className="bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="join-amount">Amount (Tokens)</Label>
+                  <Input
+                    id="join-amount"
+                    type="number"
+                    step="0.00001"
+                    value={joinAmount}
+                    onChange={(e) => setJoinAmount(e.target.value)}
+                    placeholder="0.0001"
+                  />
+                  <p className="text-sm text-gray-600 mt-1">
+                    Minimum required:{' '}
+                    {selectedSession ? formatEther(selectedSession.amountPerParticipant) : '0'}{' '}
+                    tokens
+                  </p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-sm font-medium">Your Token Balance</Label>
+                    <p className="text-sm text-gray-600">
+                      {tokenBalance ? formatEther(tokenBalance) : '0'} tokens available
+                    </p>
+                  </div>
+                  <Badge variant="outline">
+                    {tokenBalance ? formatEther(tokenBalance) : '0'} MOCK
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-sm font-medium">Token Allowance</Label>
+                    <p className="text-sm text-gray-600">
+                      {tokenAllowance ? formatEther(tokenAllowance) : '0'} tokens approved
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">
+                      {tokenAllowance ? formatEther(tokenAllowance) : '0'} MOCK
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => refetchTokenAllowance()}
+                      className="h-6 w-6 p-0"
+                    >
+                      🔄
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleApproveForJoin}
+                    disabled={approvePending || approveConfirming}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    {approvePending || approveConfirming ? 'Approving...' : 'Approve Tokens'}
+                  </Button>
+                  <Button
+                    onClick={handleJoinSession}
+                    disabled={joinPending || joinConfirming || !joinAmount}
+                    className="flex-1"
+                  >
+                    {joinPending || joinConfirming ? 'Joining...' : 'Join Session'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
-          <TabsContent value="create" className="flex-1 min-h-0">
-            <Card>
+          {/* Session Details View */}
+          {viewSession && (
+            <Card className="mb-6 flex-shrink-0">
               <CardHeader>
-                <CardTitle>Create New Session</CardTitle>
-                <CardDescription>
-                  Set up a new mentoring session. For private sessions, you pay for all participants
-                  upfront.
-                </CardDescription>
+                <CardTitle>Session Details</CardTitle>
+                <Button variant="ghost" size="sm" onClick={closeViewSession} className="ml-auto">
+                  ✕
+                </Button>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="mentor-address">Mentor Address</Label>
+                  <div>
+                    <Label className="text-sm font-medium">Session ID</Label>
+                    <p className="text-sm text-gray-600">#{viewSession.id}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Creator</Label>
+                    <p className="text-sm text-gray-600 font-mono">
+                      {viewSession.creator.slice(0, 6)}...{viewSession.creator.slice(-4)}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Mentor</Label>
+                    <p className="text-sm text-gray-600 font-mono">
+                      {viewSession.mentor.slice(0, 6)}...{viewSession.mentor.slice(-4)}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Start Time</Label>
+                    <p className="text-sm text-gray-600">
+                      {formatTimestamp(viewSession.startTime)}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Amount per Participant</Label>
+                    <p className="text-sm text-gray-600">
+                      {formatEther(viewSession.amountPerParticipant)} ETH
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Max Participants</Label>
+                    <p className="text-sm text-gray-600">{Number(viewSession.maxParticipants)}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Status</Label>
+                    <Badge variant={getSessionStateVariant(viewSession.state)}>
+                      {getSessionStateText(viewSession.state)}
+                    </Badge>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Type</Label>
                     <div className="flex gap-2">
-                      <Input
-                        id="mentor-address"
-                        placeholder="0x..."
-                        value={sessionFormData.mentorAddress}
-                        onChange={(e) => handleInputChange('mentorAddress', e.target.value)}
-                      />
-                      <Button
-                        variant="outline"
-                        onClick={useMyAddressAsMentor}
-                        disabled={!isValidMentor}
-                      >
-                        Use My Address
-                      </Button>
+                      {viewSession.isPrivateSession && <Badge variant="secondary">Private</Badge>}
+                      {viewSession.marketplace && <Badge variant="default">Marketplace</Badge>}
                     </div>
-                    {!isValidMentor && address && (
-                      <p className="text-sm text-amber-600">
-                        You need to register as a mentor first to use your address.
-                      </p>
+                  </div>
+                </div>
+
+                <Separator className="my-4" />
+
+                <div>
+                  <Label className="text-sm font-medium">
+                    Participants ({viewSession.participants.length})
+                  </Label>
+                  <div className="mt-2 space-y-1">
+                    {viewSession.participants.length > 0 ? (
+                      viewSession.participants.map((participant, index) => (
+                        <p key={index} className="text-sm font-mono">
+                          {participant}
+                        </p>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">No participants yet</p>
                     )}
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="max-participants">Max Participants</Label>
-                    <Input
-                      id="max-participants"
-                      type="number"
-                      min="1"
-                      value={sessionFormData.maxParticipants}
-                      onChange={(e) =>
-                        handleInputChange('maxParticipants', parseInt(e.target.value))
-                      }
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="start-time">Start Time</Label>
-                    <Input
-                      id="start-time"
-                      type="datetime-local"
-                      value={new Date(sessionFormData.sessionStartTime * 1000)
-                        .toISOString()
-                        .slice(0, 16)}
-                      onChange={(e) =>
-                        handleInputChange(
-                          'sessionStartTime',
-                          Math.floor(new Date(e.target.value).getTime() / 1000),
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="amount-per-participant">Amount per Participant (ETH)</Label>
-                    <Input
-                      id="amount-per-participant"
-                      type="number"
-                      step="0.00001"
-                      value={sessionFormData.minAmountPerParticipant}
-                      onChange={(e) => handleInputChange('minAmountPerParticipant', e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="total-amount">Total Amount to Pay (ETH)</Label>
-                    <Input
-                      id="total-amount"
-                      type="number"
-                      step="0.00001"
-                      value={sessionFormData.amount}
-                      onChange={(e) => handleInputChange('amount', e.target.value)}
-                    />
-                    <p className="text-xs text-gray-500">
-                      For private sessions, this is the total amount you pay upfront
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="private-session">Private Session</Label>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="private-session"
-                        checked={sessionFormData.isPrivate}
-                        onCheckedChange={(checked) => handleInputChange('isPrivate', checked)}
-                      />
-                      <span className="text-sm text-gray-600">
-                        {sessionFormData.isPrivate ? 'Private' : 'Public'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="marketplace">Marketplace Visibility</Label>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="marketplace"
-                        checked={sessionFormData.marketplace}
-                        onCheckedChange={(checked) => handleInputChange('marketplace', checked)}
-                      />
-                      <span className="text-sm text-gray-600">
-                        {sessionFormData.marketplace ? 'Visible' : 'Hidden'}
-                      </span>
-                    </div>
-                  </div>
                 </div>
+              </CardContent>
+            </Card>
+          )}
 
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Your Token Balance</Label>
-                      <p className="text-sm text-gray-600">
-                        {tokenBalance ? formatEther(tokenBalance) : '0'} tokens available
-                      </p>
+          <Tabs defaultValue="create" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="create">Create Session</TabsTrigger>
+              <TabsTrigger value="browse">Browse Sessions</TabsTrigger>
+              <TabsTrigger value="manage">My Sessions</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="create" className="flex-1 min-h-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Create New Session</CardTitle>
+                  <CardDescription>
+                    Set up a new mentoring session. For private sessions, you pay for all
+                    participants upfront.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="mentor-address">Mentor Address</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="mentor-address"
+                          placeholder="0x..."
+                          value={sessionFormData.mentorAddress}
+                          onChange={(e) => handleInputChange('mentorAddress', e.target.value)}
+                        />
+                        <Button
+                          variant="outline"
+                          onClick={useMyAddressAsMentor}
+                          disabled={!isValidMentor}
+                        >
+                          Use My Address
+                        </Button>
+                      </div>
+                      {!isValidMentor && address && (
+                        <p className="text-sm text-amber-600">
+                          You need to register as a mentor first to use your address.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="max-participants">Max Participants</Label>
+                      <Input
+                        id="max-participants"
+                        type="number"
+                        min="1"
+                        value={sessionFormData.maxParticipants}
+                        onChange={(e) =>
+                          handleInputChange('maxParticipants', parseInt(e.target.value))
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="start-time">Start Time</Label>
+                      <Input
+                        id="start-time"
+                        type="datetime-local"
+                        value={new Date(sessionFormData.sessionStartTime * 1000)
+                          .toISOString()
+                          .slice(0, 16)}
+                        onChange={(e) =>
+                          handleInputChange(
+                            'sessionStartTime',
+                            Math.floor(new Date(e.target.value).getTime() / 1000),
+                          )
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="amount-per-participant">Amount per Participant (ETH)</Label>
+                      <Input
+                        id="amount-per-participant"
+                        type="number"
+                        step="0.00001"
+                        value={sessionFormData.minAmountPerParticipant}
+                        onChange={(e) =>
+                          handleInputChange('minAmountPerParticipant', e.target.value)
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="total-amount">Total Amount to Pay (ETH)</Label>
+                      <Input
+                        id="total-amount"
+                        type="number"
+                        step="0.00001"
+                        value={sessionFormData.amount}
+                        onChange={(e) => handleInputChange('amount', e.target.value)}
+                      />
                       <p className="text-xs text-gray-500">
-                        Need tokens? Contact the contract owner or use the faucet.
+                        For private sessions, this is the total amount you pay upfront
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">
-                        {tokenBalance ? formatEther(tokenBalance) : '0'} MOCK
-                      </Badge>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="private-session">Private Session</Label>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="private-session"
+                          checked={sessionFormData.isPrivate}
+                          onCheckedChange={(checked) => handleInputChange('isPrivate', checked)}
+                        />
+                        <span className="text-sm text-gray-600">
+                          {sessionFormData.isPrivate ? 'Private' : 'Public'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="marketplace">Marketplace Visibility</Label>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="marketplace"
+                          checked={sessionFormData.marketplace}
+                          onCheckedChange={(checked) => handleInputChange('marketplace', checked)}
+                        />
+                        <span className="text-sm text-gray-600">
+                          {sessionFormData.marketplace ? 'Visible' : 'Hidden'}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleApproveTokens}
-                      disabled={approvePending || approveConfirming}
-                      variant="outline"
-                    >
-                      {approvePending || approveConfirming ? 'Approving...' : 'Approve Tokens'}
-                    </Button>
-                    <Button
-                      onClick={handleCreateSession}
-                      disabled={createPending || createConfirming}
-                    >
-                      {createPending || createConfirming ? 'Creating...' : 'Create Session'}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="browse" className="flex-1 min-h-0">
-            <Card>
-              <CardHeader>
-                <CardTitle>Browse Sessions</CardTitle>
-                <CardDescription>
-                  Discover and join all available mentoring sessions.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingSessions ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-600">Loading sessions...</p>
-                  </div>
-                ) : allSessions.length > 0 ? (
                   <div className="space-y-4">
-                    <p className="text-sm text-gray-600">
-                      {allSessions.length} session{allSessions.length === 1 ? '' : 's'} available
-                    </p>
-                    <div className="border rounded-lg overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="min-w-[80px]">Session ID</TableHead>
-                            <TableHead className="min-w-[120px]">Mentor</TableHead>
-                            <TableHead className="min-w-[140px]">Start Time</TableHead>
-                            <TableHead className="min-w-[100px]">Participants</TableHead>
-                            <TableHead className="min-w-[100px]">Amount</TableHead>
-                            <TableHead className="min-w-[80px]">Status</TableHead>
-                            <TableHead className="min-w-[140px]">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {allSessions.map((session) => (
-                            <TableRow key={session.id}>
-                              <TableCell className="font-medium">#{session.id}</TableCell>
-                              <TableCell className="font-mono text-sm">
-                                {session.mentor.slice(0, 6)}...{session.mentor.slice(-4)}
-                              </TableCell>
-                              <TableCell className="text-sm">
-                                {formatTimestamp(session.startTime)}
-                              </TableCell>
-                              <TableCell>
-                                {session.participants.length}/{Number(session.maxParticipants)}
-                              </TableCell>
-                              <TableCell>{formatEther(session.amountPerParticipant)} ETH</TableCell>
-                              <TableCell>
-                                <Badge variant={getSessionStateVariant(session.state)}>
-                                  {getSessionStateText(session.state)}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex gap-1">
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleJoinClick(session)}
-                                    disabled={
-                                      session.state !== 0 ||
-                                      session.participants.length >=
-                                        Number(session.maxParticipants) ||
-                                      (address &&
-                                        session.participants.some(
-                                          (p) => p.toLowerCase() === address.toLowerCase(),
-                                        ))
-                                    }
-                                  >
-                                    {address &&
-                                    session.participants.some(
-                                      (p) => p.toLowerCase() === address.toLowerCase(),
-                                    )
-                                      ? 'Joined'
-                                      : 'Join'}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleViewSession(session)}
-                                  >
-                                    View
-                                  </Button>
-                                </div>
-                              </TableCell>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Your Token Balance</Label>
+                        <p className="text-sm text-gray-600">
+                          {tokenBalance ? formatEther(tokenBalance) : '0'} tokens available
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Need tokens? Contact the contract owner or use the faucet.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">
+                          {tokenBalance ? formatEther(tokenBalance) : '0'} MOCK
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleApproveTokens}
+                        disabled={approvePending || approveConfirming}
+                        variant="outline"
+                      >
+                        {approvePending || approveConfirming ? 'Approving...' : 'Approve Tokens'}
+                      </Button>
+                      <Button
+                        onClick={handleCreateSession}
+                        disabled={createPending || createConfirming}
+                      >
+                        {createPending || createConfirming ? 'Creating...' : 'Create Session'}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="browse" className="flex-1 min-h-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Browse Sessions</CardTitle>
+                  <CardDescription>
+                    Discover and join all available mentoring sessions.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loadingSessions ? (
+                    <div className="text-center py-8">
+                      <p className="text-gray-600">Loading sessions...</p>
+                    </div>
+                  ) : allSessions.length > 0 ? (
+                    <div className="space-y-4">
+                      <p className="text-sm text-gray-600">
+                        {allSessions.length} session{allSessions.length === 1 ? '' : 's'} available
+                      </p>
+                      <div className="border rounded-lg overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="min-w-[80px]">Session ID</TableHead>
+                              <TableHead className="min-w-[120px]">Mentor</TableHead>
+                              <TableHead className="min-w-[140px]">Start Time</TableHead>
+                              <TableHead className="min-w-[100px]">Participants</TableHead>
+                              <TableHead className="min-w-[100px]">Amount</TableHead>
+                              <TableHead className="min-w-[80px]">Status</TableHead>
+                              <TableHead className="min-w-[140px]">Actions</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-gray-600 mb-4">No sessions available right now.</p>
-                    <p className="text-sm text-gray-500">
-                      Total Sessions Created: {sessionCounter ? sessionCounter.toString() : '0'}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Create your first session using the "Create Session" tab above.
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="manage" className="flex-1 min-h-0">
-            <Card>
-              <CardHeader>
-                <CardTitle>My Sessions</CardTitle>
-                <CardDescription>
-                  Sessions you've created, joined, or are mentoring.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {mySessions.length > 0 ? (
-                  <div className="space-y-4">
-                    <p className="text-sm text-gray-600">
-                      {mySessions.length} session{mySessions.length === 1 ? '' : 's'} found
-                    </p>
-                    <div className="border rounded-lg overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="min-w-[80px]">Session ID</TableHead>
-                            <TableHead className="min-w-[80px]">Role</TableHead>
-                            <TableHead className="min-w-[120px]">Mentor</TableHead>
-                            <TableHead className="min-w-[140px]">Start Time</TableHead>
-                            <TableHead className="min-w-[100px]">Participants</TableHead>
-                            <TableHead className="min-w-[100px]">Amount</TableHead>
-                            <TableHead className="min-w-[80px]">Status</TableHead>
-                            <TableHead className="min-w-[160px]">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {mySessions.map((session) => {
-                            const isCreator =
-                              address && session.creator.toLowerCase() === address.toLowerCase();
-                            const isMentor =
-                              address && session.mentor.toLowerCase() === address.toLowerCase();
-                            const isParticipant =
-                              address &&
-                              session.participants.some(
-                                (p: string) => p.toLowerCase() === address.toLowerCase(),
-                              );
-
-                            let roleText = '';
-                            if (isCreator) roleText = 'Creator';
-                            else if (isMentor) roleText = 'Mentor';
-                            else if (isParticipant) roleText = 'Participant';
-
-                            return (
+                          </TableHeader>
+                          <TableBody>
+                            {allSessions.map((session) => (
                               <TableRow key={session.id}>
                                 <TableCell className="font-medium">#{session.id}</TableCell>
-                                <TableCell>
-                                  <Badge variant="outline" className="text-xs">
-                                    {roleText}
-                                  </Badge>
-                                </TableCell>
                                 <TableCell className="font-mono text-sm">
                                   {session.mentor.slice(0, 6)}...{session.mentor.slice(-4)}
                                 </TableCell>
@@ -1368,74 +1254,197 @@ export default function SessionsPage() {
                                   </Badge>
                                 </TableCell>
                                 <TableCell>
-                                  <div className="flex gap-1 flex-wrap">
-                                    {isParticipant &&
-                                      session.state === SessionState.Accepted && ( // TODO: add
-                                        <Button
-                                          size="sm"
-                                          onClick={() => handleAttendSession(session.id)}
-                                          disabled={attendingSession === session.id}
-                                          className="mb-1"
-                                        >
-                                          {attendingSession === session.id
-                                            ? 'Joining...'
-                                            : 'Attend'}
-                                        </Button>
-                                      )}
-
-                                    {/* Abandon button for participants when session is created */}
-                                    {isParticipant && session.state === SessionState.Created && (
-                                      <Button
-                                        size="sm"
-                                        onClick={() => handleAbandonSession(session.id)}
-                                        disabled={abandonPending || abandonConfirming}
-                                        variant="destructive"
-                                        className="mb-1"
-                                      >
-                                        {abandonPending || abandonConfirming
-                                          ? 'Abandoning...'
-                                          : 'Abandon'}
-                                      </Button>
-                                    )}
-
-                                    {isMentor && session.state === SessionState.Accepted && (
-                                      <Button size="sm" variant="outline" className="mb-1">
-                                        Complete
-                                      </Button>
-                                    )}
-                                    {(isCreator || isMentor) && (
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => handleViewSession(session)}
-                                        className="mb-1"
-                                      >
-                                        View
-                                      </Button>
-                                    )}
+                                  <div className="flex gap-1">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleJoinClick(session)}
+                                      disabled={
+                                        session.state !== 0 ||
+                                        session.participants.length >=
+                                          Number(session.maxParticipants) ||
+                                        (address &&
+                                          session.participants.some(
+                                            (p) => p.toLowerCase() === address.toLowerCase(),
+                                          ))
+                                      }
+                                    >
+                                      {address &&
+                                      session.participants.some(
+                                        (p) => p.toLowerCase() === address.toLowerCase(),
+                                      )
+                                        ? 'Joined'
+                                        : 'Join'}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleViewSession(session)}
+                                    >
+                                      View
+                                    </Button>
                                   </div>
                                 </TableCell>
                               </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-gray-600 mb-4">
-                      You haven't created, joined, or mentored any sessions yet.
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Create your first session using the "Create Session" tab above.
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-gray-600 mb-4">No sessions available right now.</p>
+                      <p className="text-sm text-gray-500">
+                        Total Sessions Created: {sessionCounter ? sessionCounter.toString() : '0'}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Create your first session using the "Create Session" tab above.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="manage" className="flex-1 min-h-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle>My Sessions</CardTitle>
+                  <CardDescription>
+                    Sessions you've created, joined, or are mentoring.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {mySessions.length > 0 ? (
+                    <div className="space-y-4">
+                      <p className="text-sm text-gray-600">
+                        {mySessions.length} session{mySessions.length === 1 ? '' : 's'} found
+                      </p>
+                      <div className="border rounded-lg overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="min-w-[80px]">Session ID</TableHead>
+                              <TableHead className="min-w-[80px]">Role</TableHead>
+                              <TableHead className="min-w-[120px]">Mentor</TableHead>
+                              <TableHead className="min-w-[140px]">Start Time</TableHead>
+                              <TableHead className="min-w-[100px]">Participants</TableHead>
+                              <TableHead className="min-w-[100px]">Amount</TableHead>
+                              <TableHead className="min-w-[80px]">Status</TableHead>
+                              <TableHead className="min-w-[160px]">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {mySessions.map((session) => {
+                              const isCreator =
+                                address && session.creator.toLowerCase() === address.toLowerCase();
+                              const isMentor =
+                                address && session.mentor.toLowerCase() === address.toLowerCase();
+                              const isParticipant =
+                                address &&
+                                session.participants.some(
+                                  (p: string) => p.toLowerCase() === address.toLowerCase(),
+                                );
+
+                              let roleText = '';
+                              if (isCreator) roleText = 'Creator';
+                              else if (isMentor) roleText = 'Mentor';
+                              else if (isParticipant) roleText = 'Participant';
+
+                              return (
+                                <TableRow key={session.id}>
+                                  <TableCell className="font-medium">#{session.id}</TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline" className="text-xs">
+                                      {roleText}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="font-mono text-sm">
+                                    {session.mentor.slice(0, 6)}...{session.mentor.slice(-4)}
+                                  </TableCell>
+                                  <TableCell className="text-sm">
+                                    {formatTimestamp(session.startTime)}
+                                  </TableCell>
+                                  <TableCell>
+                                    {session.participants.length}/{Number(session.maxParticipants)}
+                                  </TableCell>
+                                  <TableCell>
+                                    {formatEther(session.amountPerParticipant)} ETH
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={getSessionStateVariant(session.state)}>
+                                      {getSessionStateText(session.state)}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex gap-1 flex-wrap">
+                                      {isParticipant &&
+                                        session.state === SessionState.Accepted && ( // TODO: add
+                                          <Button
+                                            size="sm"
+                                            onClick={() => handleAttendSession(session.id)}
+                                            disabled={attendingSession === session.id}
+                                            className="mb-1"
+                                          >
+                                            {attendingSession === session.id
+                                              ? 'Joining...'
+                                              : 'Attend'}
+                                          </Button>
+                                        )}
+
+                                      {/* Abandon button for participants when session is created */}
+                                      {isParticipant && session.state === SessionState.Created && (
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleAbandonSession(session.id)}
+                                          disabled={abandonPending || abandonConfirming}
+                                          variant="destructive"
+                                          className="mb-1"
+                                        >
+                                          {abandonPending || abandonConfirming
+                                            ? 'Abandoning...'
+                                            : 'Abandon'}
+                                        </Button>
+                                      )}
+
+                                      {isMentor && session.state === SessionState.Accepted && (
+                                        <Button size="sm" variant="outline" className="mb-1">
+                                          Complete
+                                        </Button>
+                                      )}
+                                      {(isCreator || isMentor) && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => handleViewSession(session)}
+                                          className="mb-1"
+                                        >
+                                          View
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-gray-600 mb-4">
+                        You haven't created, joined, or mentored any sessions yet.
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Create your first session using the "Create Session" tab above.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </div>
   );

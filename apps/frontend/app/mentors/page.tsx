@@ -543,17 +543,17 @@ export default function MentorsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-h-screen overflow-hidden">
-      <div className="max-w-4xl mx-auto h-full flex flex-col">
-        <div className="mb-8 flex-shrink-0">
-          <h1 className="text-3xl font-bold mb-2">Mentor Dashboard</h1>
-          <p className="text-gray-600">
-            Manage your mentor profile and track your mentoring sessions.
-          </p>
-        </div>
+    <div className="scrollable-page">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold mb-2">Mentor Dashboard</h1>
+            <p className="text-gray-600">
+              Manage your mentor profile and track your mentoring sessions.
+            </p>
+          </div>
 
-        <ScrollArea className="flex-1">
-          <div className="space-y-6 pr-4">
+          <div className="space-y-6">
             {!mentorData?.registered ? (
               <Card>
                 <CardHeader>
@@ -801,7 +801,7 @@ export default function MentorsPage() {
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </div>
     </div>
   );
