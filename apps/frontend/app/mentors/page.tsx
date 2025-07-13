@@ -80,7 +80,7 @@ export default function MentorsPage() {
   const { data: sessionCounter } = useReadContract({
     address: CONTRACT_ADDRESSES.SESSIONS,
     abi: SESSIONS_ABI,
-    functionName: '_sessionCounter',
+    functionName: 'sessionCounter',
     chainId: arbitrumSepolia.id,
   });
 
@@ -92,7 +92,7 @@ export default function MentorsPage() {
     args: [BigInt(1)],
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: !!sessionCounter && sessionCounter >= 1n,
+      enabled: !!sessionCounter && BigInt(sessionCounter) >= 1n,
     },
   });
 
@@ -103,7 +103,7 @@ export default function MentorsPage() {
     args: [BigInt(2)],
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: !!sessionCounter && sessionCounter >= 2n,
+      enabled: !!sessionCounter && BigInt(sessionCounter) >= 2n,
     },
   });
 
@@ -114,7 +114,7 @@ export default function MentorsPage() {
     args: [BigInt(3)],
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: !!sessionCounter && sessionCounter >= 3n,
+      enabled: !!sessionCounter && BigInt(sessionCounter) >= 3n,
     },
   });
 

@@ -12,7 +12,6 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
@@ -101,7 +100,7 @@ export default function SessionsPage() {
   const { data: sessionCounter } = useReadContract({
     address: CONTRACT_ADDRESSES.SESSIONS,
     abi: SESSIONS_ABI,
-    functionName: '_sessionCounter',
+    functionName: 'sessionCounter',
     chainId: arbitrumSepolia.id,
   });
 
@@ -125,7 +124,7 @@ export default function SessionsPage() {
     args: [BigInt(1)],
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: !!sessionCounter && sessionCounter >= 1n,
+      enabled: !!sessionCounter && BigInt(sessionCounter) >= 1n,
     },
   });
 
@@ -136,7 +135,7 @@ export default function SessionsPage() {
     args: [BigInt(2)],
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: !!sessionCounter && sessionCounter >= 2n,
+      enabled: !!sessionCounter && BigInt(sessionCounter) >= 2n,
     },
   });
 
@@ -147,21 +146,27 @@ export default function SessionsPage() {
     args: [BigInt(3)],
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: !!sessionCounter && sessionCounter >= 3n,
+      enabled: !!sessionCounter && BigInt(sessionCounter) >= 3n,
     },
   });
 
   // Load sessions from contract
   const loadSessions = async () => {
-    console.log('loadSessions called, sessionCounter:', sessionCounter);
+    console.log(
+      'loadSessions called, sessionCounter:',
+      sessionCounter,
+      'type:',
+      typeof sessionCounter,
+    );
 
-    if (!sessionCounter || sessionCounter === 0n) {
-      console.log('No sessions to load');
+    if (!sessionCounter || Number(sessionCounter) === 0) {
+      console.log('No sessions to load - sessionCounter is 0 or undefined');
       setSessions([]);
       return;
     }
 
     setLoadingSessions(true);
+    console.log('Starting to load sessions...');
 
     const sessionsData: SessionDisplay[] = [];
 
@@ -169,9 +174,15 @@ export default function SessionsPage() {
     const sessionQueries = [session1, session2, session3];
 
     sessionQueries.forEach((query, index) => {
-      console.log(`Session ${index + 1} query:`, query.data, query.isLoading, query.error);
+      console.log(`Session ${index + 1} query:`, {
+        data: query.data,
+        isLoading: query.isLoading,
+        error: query.error?.message || query.error,
+        isEnabled: !!sessionCounter && BigInt(sessionCounter) >= BigInt(index + 1),
+      });
       if (query.data) {
         const sessionInfo = query.data;
+        console.log(`Session ${index + 1} raw data:`, sessionInfo);
 
         // Validate that the session has valid data
         // Check if creator is not the zero address and has valid start time
@@ -192,20 +203,28 @@ export default function SessionsPage() {
             endTime: sessionInfo[3],
             amountPerParticipant: sessionInfo[4],
             maxParticipants: sessionInfo[5],
-            participants: [...sessionInfo[6]],
+            participants: [...(sessionInfo[6] || [])],
             state: sessionInfo[7],
             sessionDeposit: sessionInfo[8],
             isPrivateSession: sessionInfo[9],
             marketplace: sessionInfo[10],
           });
+          console.log(`Session ${index + 1} added to sessionsData`);
+        } else {
+          console.log(`Session ${index + 1} failed validation, skipping`);
         }
+      } else {
+        console.log(`Session ${index + 1} has no data`);
       }
     });
 
     setSessions(sessionsData);
     setLoadingSessions(false);
 
-    console.log(`Loaded ${sessionsData.length} out of ${sessionCounter} sessions`, sessionsData);
+    console.log(
+      `Final result: Loaded ${sessionsData.length} out of ${sessionCounter} sessions`,
+      sessionsData,
+    );
   };
 
   // Load sessions when sessionCounter changes or session queries complete
@@ -217,14 +236,31 @@ export default function SessionsPage() {
 
   // Filter sessions for different tabs
   const allSessions = sessions; // Show all sessions in Browse section
+  console.log('All sessions for Browse tab:', allSessions);
 
-  const mySessions = sessions.filter(
-    (session) =>
+  const mySessions = sessions.filter((session) => {
+    const isCreator = address && session.creator.toLowerCase() === address.toLowerCase();
+    const isMentor = address && session.mentor.toLowerCase() === address.toLowerCase();
+    const isParticipant =
       address &&
-      (session.creator.toLowerCase() === address.toLowerCase() ||
-        session.mentor.toLowerCase() === address.toLowerCase() ||
-        session.participants.some((p: string) => p.toLowerCase() === address.toLowerCase())),
-  );
+      session.participants.some((p: string) => p.toLowerCase() === address.toLowerCase());
+
+    const isMySession = address && (isCreator || isMentor || isParticipant);
+
+    console.log(`Session ${session.id} filter check:`, {
+      address,
+      sessionCreator: session.creator,
+      sessionMentor: session.mentor,
+      sessionParticipants: session.participants,
+      isCreator,
+      isMentor,
+      isParticipant,
+      isMySession,
+    });
+
+    return isMySession;
+  });
+  console.log('My sessions after filtering:', mySessions);
 
   const handleJoinClick = (session: SessionDisplay) => {
     setSelectedSession(session);
@@ -1257,15 +1293,18 @@ export default function SessionsPage() {
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex gap-2">
-                                    {isParticipant && ( // TODO: add session.state === SessionState.Accepted
-                                      <Button
-                                        size="sm"
-                                        onClick={() => handleAttendSession(session.id)}
-                                        disabled={attendingSession === session.id}
-                                      >
-                                        {attendingSession === session.id ? 'Joining...' : 'Attend'}
-                                      </Button>
-                                    )}
+                                    {isParticipant &&
+                                      session.state === SessionState.Accepted && ( // TODO: add
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleAttendSession(session.id)}
+                                          disabled={attendingSession === session.id}
+                                        >
+                                          {attendingSession === session.id
+                                            ? 'Joining...'
+                                            : 'Attend'}
+                                        </Button>
+                                      )}
                                     {isMentor && session.state === SessionState.Accepted && (
                                       <Button size="sm" variant="outline">
                                         Complete

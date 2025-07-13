@@ -28,7 +28,7 @@ export default function HomePage() {
   const { data: sessionCounter } = useReadContract({
     address: CONTRACT_ADDRESSES.SESSIONS,
     abi: SESSIONS_ABI,
-    functionName: '_sessionCounter',
+    functionName: 'sessionCounter',
     chainId: arbitrumSepolia.id,
   });
 
