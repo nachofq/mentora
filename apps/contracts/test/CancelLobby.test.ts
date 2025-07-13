@@ -373,5 +373,190 @@ describe('Mentora - Cancel Lobby', function () {
         participant1BalanceBefore + lobbyParams.amountPerParticipant
       );
     });
+
+    it("Should remove lobby from participants' lobby lists when cancelled", async function () {
+      const { mentora, master, participant1, participant2 } =
+        await createLobbyWithParticipants();
+
+      // Check participants have the lobby initially
+      let participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      let participant2Lobbies = await mentora
+        .connect(participant2)
+        .getMyLobbiesAsParticipant();
+
+      expect(participant1Lobbies.length).to.equal(1);
+      expect(participant2Lobbies.length).to.equal(1);
+      expect(participant1Lobbies[0]).to.equal(1);
+      expect(participant2Lobbies[0]).to.equal(1);
+
+      // Cancel lobby
+      await mentora.connect(master).cancelLobby(1);
+
+      // Check participants no longer have the lobby in their lists
+      participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      participant2Lobbies = await mentora
+        .connect(participant2)
+        .getMyLobbiesAsParticipant();
+
+      expect(participant1Lobbies.length).to.equal(0);
+      expect(participant2Lobbies.length).to.equal(0);
+    });
+
+    it("Should keep lobby in master's lobby list when cancelled", async function () {
+      const { mentora, master, participant1, participant2 } =
+        await createLobbyWithParticipants();
+
+      // Check master has the lobby initially
+      let masterLobbies = await mentora.connect(master).getMyLobbiesAsMaster();
+      expect(masterLobbies.length).to.equal(1);
+      expect(masterLobbies[0]).to.equal(1);
+
+      // Cancel lobby
+      await mentora.connect(master).cancelLobby(1);
+
+      // Master should still have the lobby in their list (historical record)
+      masterLobbies = await mentora.connect(master).getMyLobbiesAsMaster();
+      expect(masterLobbies.length).to.equal(1);
+      expect(masterLobbies[0]).to.equal(1);
+    });
+
+    it('Should handle cancellation with multiple lobbies correctly', async function () {
+      const { mentora, creator, master, participant1 } = await loadFixture(
+        deployMentora
+      );
+      const signers = await hre.ethers.getSigners();
+
+      // Create first lobby
+      await mentora
+        .connect(creator)
+        .createLobby(
+          master.address,
+          lobbyParams.maxParticipants,
+          lobbyParams.amountPerParticipant,
+          'First lobby'
+        );
+
+      // Create second lobby with different master
+      await mentora
+        .connect(creator)
+        .createLobby(
+          signers[6].address,
+          lobbyParams.maxParticipants,
+          lobbyParams.amountPerParticipant,
+          'Second lobby'
+        );
+
+      // participant1 joins both lobbies
+      await mentora.connect(participant1).joinLobby(1, {
+        value: lobbyParams.amountPerParticipant,
+      });
+      await mentora.connect(participant1).joinLobby(2, {
+        value: lobbyParams.amountPerParticipant,
+      });
+
+      // Check participant has both lobbies
+      let participantLobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participantLobbies.length).to.equal(2);
+      expect(participantLobbies[0]).to.equal(1);
+      expect(participantLobbies[1]).to.equal(2);
+
+      // Cancel first lobby
+      await mentora.connect(master).cancelLobby(1);
+
+      // Check only first lobby is removed from participant's list
+      participantLobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participantLobbies.length).to.equal(1);
+      expect(participantLobbies[0]).to.equal(2);
+
+      // Check first master still has their lobby
+      let masterLobbies = await mentora.connect(master).getMyLobbiesAsMaster();
+      expect(masterLobbies.length).to.equal(1);
+      expect(masterLobbies[0]).to.equal(1);
+
+      // Check second master still has their lobby
+      let secondMasterLobbies = await mentora
+        .connect(signers[6])
+        .getMyLobbiesAsMaster();
+      expect(secondMasterLobbies.length).to.equal(1);
+      expect(secondMasterLobbies[0]).to.equal(2);
+    });
+
+    it('Should handle cancellation of accepted lobby with lobby lists', async function () {
+      const { mentora, master, participant1, participant2 } =
+        await createLobbyWithParticipants();
+
+      // Accept lobby first
+      await mentora.connect(master).acceptLobby(1);
+
+      // Check initial state
+      let participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      let participant2Lobbies = await mentora
+        .connect(participant2)
+        .getMyLobbiesAsParticipant();
+      let masterLobbies = await mentora.connect(master).getMyLobbiesAsMaster();
+
+      expect(participant1Lobbies.length).to.equal(1);
+      expect(participant2Lobbies.length).to.equal(1);
+      expect(masterLobbies.length).to.equal(1);
+
+      // Cancel accepted lobby
+      await mentora.connect(master).cancelLobby(1);
+
+      // Check participants are removed but master keeps it
+      participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      participant2Lobbies = await mentora
+        .connect(participant2)
+        .getMyLobbiesAsParticipant();
+      masterLobbies = await mentora.connect(master).getMyLobbiesAsMaster();
+
+      expect(participant1Lobbies.length).to.equal(0);
+      expect(participant2Lobbies.length).to.equal(0);
+      expect(masterLobbies.length).to.equal(1);
+      expect(masterLobbies[0]).to.equal(1);
+    });
+
+    it("Should maintain privacy when cancelling - participants cannot see each other's lists", async function () {
+      const { mentora, master, participant1, participant2 } =
+        await createLobbyWithParticipants();
+
+      // Cancel lobby
+      await mentora.connect(master).cancelLobby(1);
+
+      // Both participants should have empty lists
+      const participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      const participant2Lobbies = await mentora
+        .connect(participant2)
+        .getMyLobbiesAsParticipant();
+
+      expect(participant1Lobbies.length).to.equal(0);
+      expect(participant2Lobbies.length).to.equal(0);
+
+      // Master should still have the lobby
+      const masterLobbies = await mentora
+        .connect(master)
+        .getMyLobbiesAsMaster();
+      expect(masterLobbies.length).to.equal(1);
+      expect(masterLobbies[0]).to.equal(1);
+
+      // Master should not have it as participant
+      const masterParticipantLobbies = await mentora
+        .connect(master)
+        .getMyLobbiesAsParticipant();
+      expect(masterParticipantLobbies.length).to.equal(0);
+    });
   });
 });

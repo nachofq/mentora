@@ -286,5 +286,207 @@ describe('Mentora - Join Lobby', function () {
       expect(participants).to.include(participant2.address);
       expect(participants).to.include(signers[5].address);
     });
+
+    it('Should revert if master tries to join their own lobby', async function () {
+      const { mentora, creator, master } = await loadFixture(deployMentora);
+
+      // Create lobby
+      await mentora
+        .connect(creator)
+        .createLobby(
+          master.address,
+          lobbyParams.maxParticipants,
+          lobbyParams.amountPerParticipant,
+          lobbyParams.description
+        );
+
+      // Master tries to join their own lobby
+      await expect(
+        mentora.connect(master).joinLobby(1, {
+          value: lobbyParams.amountPerParticipant,
+        })
+      ).to.be.revertedWith('Master cannot be a participant in their own lobby');
+    });
+
+    it("Should add lobby to participant's lobby list when joining", async function () {
+      const { mentora, participant1 } = await loadFixture(deployMentora);
+      await createTestLobby();
+
+      // Check participant has no lobbies initially
+      let participantLobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participantLobbies.length).to.equal(0);
+
+      // Join lobby
+      await mentora.connect(participant1).joinLobby(1, {
+        value: lobbyParams.amountPerParticipant,
+      });
+
+      // Check participant now has one lobby
+      participantLobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participantLobbies.length).to.equal(1);
+      expect(participantLobbies[0]).to.equal(1);
+    });
+
+    it("Should not add lobby to master's participant list when others join", async function () {
+      const { mentora, master, participant1 } = await loadFixture(
+        deployMentora
+      );
+      await createTestLobby();
+
+      // Join lobby as participant1
+      await mentora.connect(participant1).joinLobby(1, {
+        value: lobbyParams.amountPerParticipant,
+      });
+
+      // Check master doesn't have it in participant list
+      const masterParticipantLobbies = await mentora
+        .connect(master)
+        .getMyLobbiesAsParticipant();
+      expect(masterParticipantLobbies.length).to.equal(0);
+
+      // But participant1 should have it
+      const participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participant1Lobbies.length).to.equal(1);
+      expect(participant1Lobbies[0]).to.equal(1);
+    });
+
+    it('Should track multiple lobbies for same participant', async function () {
+      const { mentora, creator, master, participant1 } = await loadFixture(
+        deployMentora
+      );
+
+      // Create first lobby
+      await mentora
+        .connect(creator)
+        .createLobby(
+          master.address,
+          lobbyParams.maxParticipants,
+          lobbyParams.amountPerParticipant,
+          'First lobby'
+        );
+
+      // Create second lobby with different master
+      const signers = await hre.ethers.getSigners();
+      await mentora.connect(creator).createLobby(
+        signers[6].address, // different master
+        lobbyParams.maxParticipants,
+        lobbyParams.amountPerParticipant,
+        'Second lobby'
+      );
+
+      // Participant joins both lobbies
+      await mentora.connect(participant1).joinLobby(1, {
+        value: lobbyParams.amountPerParticipant,
+      });
+      await mentora.connect(participant1).joinLobby(2, {
+        value: lobbyParams.amountPerParticipant,
+      });
+
+      // Check participant has both lobbies
+      const participantLobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participantLobbies.length).to.equal(2);
+      expect(participantLobbies[0]).to.equal(1);
+      expect(participantLobbies[1]).to.equal(2);
+    });
+
+    it('Should maintain privacy - users can only see their own participant lobbies', async function () {
+      const { mentora, participant1, participant2 } = await loadFixture(
+        deployMentora
+      );
+      await createTestLobby();
+
+      // participant1 joins lobby
+      await mentora.connect(participant1).joinLobby(1, {
+        value: lobbyParams.amountPerParticipant,
+      });
+
+      // participant1 should see the lobby
+      const participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participant1Lobbies.length).to.equal(1);
+      expect(participant1Lobbies[0]).to.equal(1);
+
+      // participant2 should not see any lobbies
+      const participant2Lobbies = await mentora
+        .connect(participant2)
+        .getMyLobbiesAsParticipant();
+      expect(participant2Lobbies.length).to.equal(0);
+    });
+
+    it('Should handle participant joining after others have joined', async function () {
+      const { mentora, participant1, participant2 } = await loadFixture(
+        deployMentora
+      );
+      await createTestLobby();
+
+      // First participant joins
+      await mentora.connect(participant1).joinLobby(1, {
+        value: lobbyParams.amountPerParticipant,
+      });
+
+      // Check first participant's lobbies
+      let participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participant1Lobbies.length).to.equal(1);
+      expect(participant1Lobbies[0]).to.equal(1);
+
+      // Second participant joins
+      await mentora.connect(participant2).joinLobby(1, {
+        value: lobbyParams.amountPerParticipant,
+      });
+
+      // Both participants should now have the lobby
+      participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      const participant2Lobbies = await mentora
+        .connect(participant2)
+        .getMyLobbiesAsParticipant();
+
+      expect(participant1Lobbies.length).to.equal(1);
+      expect(participant1Lobbies[0]).to.equal(1);
+      expect(participant2Lobbies.length).to.equal(1);
+      expect(participant2Lobbies[0]).to.equal(1);
+    });
+
+    it('Should not prevent creator from joining if creator is not master', async function () {
+      const { mentora, creator, master } = await loadFixture(deployMentora);
+
+      // Create lobby where creator is not master
+      await mentora
+        .connect(creator)
+        .createLobby(
+          master.address,
+          lobbyParams.maxParticipants,
+          lobbyParams.amountPerParticipant,
+          lobbyParams.description
+        );
+
+      // Creator should be able to join their own created lobby (since they're not master)
+      await mentora.connect(creator).joinLobby(1, {
+        value: lobbyParams.amountPerParticipant,
+      });
+
+      // Verify creator is now a participant
+      const participants = await mentora.getParticipants(1);
+      expect(participants).to.include(creator.address);
+
+      // Verify creator has the lobby in their participant list
+      const creatorParticipantLobbies = await mentora
+        .connect(creator)
+        .getMyLobbiesAsParticipant();
+      expect(creatorParticipantLobbies.length).to.equal(1);
+      expect(creatorParticipantLobbies[0]).to.equal(1);
+    });
   });
 });

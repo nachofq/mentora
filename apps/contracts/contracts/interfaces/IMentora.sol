@@ -77,4 +77,11 @@ interface IMentora {
     ) external view returns (uint256);
 
     function getTotalLobbies() external view returns (uint256);
+
+    function getMyLobbiesAsMaster() external view returns (uint256[] memory);
+
+    function getMyLobbiesAsParticipant()
+        external
+        view
+        returns (uint256[] memory);
 }

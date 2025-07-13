@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { RoomServiceClient } from 'livekit-server-sdk';
-import { AccessToken } from 'livekit-server-sdk';
+import { RoomServiceClient, AccessToken } from 'livekit-server-sdk';
 
 @Injectable()
 export class LivekitClient {
@@ -34,7 +33,6 @@ export class LivekitClient {
     // It's available as LocalParticipant.identity with livekit-client SDK
 
     const participantName = Math.random().toString(36).substring(2, 15);
-
 
     const at = new AccessToken(
       process.env.LIVEKIT_API_KEY,

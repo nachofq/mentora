@@ -361,5 +361,285 @@ describe('Mentora - Abandon Lobby', function () {
         mentora.connect(participant1).abandonLobby(1)
       ).to.be.revertedWith('Cannot abandon lobby after it has been accepted');
     });
+
+    it("Should remove lobby from participant's lobby list when abandoning", async function () {
+      const { mentora, participant1 } = await createLobbyWithOneParticipant();
+
+      // Check participant has the lobby initially
+      let participantLobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participantLobbies.length).to.equal(1);
+      expect(participantLobbies[0]).to.equal(1);
+
+      // Abandon lobby
+      await mentora.connect(participant1).abandonLobby(1);
+
+      // Check lobby is removed from participant's list
+      participantLobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participantLobbies.length).to.equal(0);
+    });
+
+    it("Should not affect other participants' lobby lists when one abandons", async function () {
+      const { mentora, participant1, participant2, participant3 } =
+        await createLobbyWithMultipleParticipants();
+
+      // Check all participants have the lobby initially
+      let participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      let participant2Lobbies = await mentora
+        .connect(participant2)
+        .getMyLobbiesAsParticipant();
+      let participant3Lobbies = await mentora
+        .connect(participant3)
+        .getMyLobbiesAsParticipant();
+
+      expect(participant1Lobbies.length).to.equal(1);
+      expect(participant2Lobbies.length).to.equal(1);
+      expect(participant3Lobbies.length).to.equal(1);
+      expect(participant1Lobbies[0]).to.equal(1);
+      expect(participant2Lobbies[0]).to.equal(1);
+      expect(participant3Lobbies[0]).to.equal(1);
+
+      // participant2 abandons
+      await mentora.connect(participant2).abandonLobby(1);
+
+      // Check only participant2's list is updated
+      participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      participant2Lobbies = await mentora
+        .connect(participant2)
+        .getMyLobbiesAsParticipant();
+      participant3Lobbies = await mentora
+        .connect(participant3)
+        .getMyLobbiesAsParticipant();
+
+      expect(participant1Lobbies.length).to.equal(1); // Still has it
+      expect(participant2Lobbies.length).to.equal(0); // Removed
+      expect(participant3Lobbies.length).to.equal(1); // Still has it
+      expect(participant1Lobbies[0]).to.equal(1);
+      expect(participant3Lobbies[0]).to.equal(1);
+    });
+
+    it('Should handle abandoning from multiple lobbies correctly', async function () {
+      const { mentora, creator, participant1 } = await loadFixture(
+        deployMentora
+      );
+      const signers = await hre.ethers.getSigners();
+
+      // Create first lobby
+      await mentora
+        .connect(creator)
+        .createLobby(
+          signers[6].address,
+          lobbyParams.maxParticipants,
+          lobbyParams.amountPerParticipant,
+          'First lobby'
+        );
+
+      // Create second lobby
+      await mentora
+        .connect(creator)
+        .createLobby(
+          signers[7].address,
+          lobbyParams.maxParticipants,
+          lobbyParams.amountPerParticipant,
+          'Second lobby'
+        );
+
+      // Participant joins both lobbies
+      await mentora.connect(participant1).joinLobby(1, {
+        value: lobbyParams.amountPerParticipant,
+      });
+      await mentora.connect(participant1).joinLobby(2, {
+        value: lobbyParams.amountPerParticipant,
+      });
+
+      // Check participant has both lobbies
+      let participantLobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participantLobbies.length).to.equal(2);
+      expect(participantLobbies[0]).to.equal(1);
+      expect(participantLobbies[1]).to.equal(2);
+
+      // Abandon first lobby
+      await mentora.connect(participant1).abandonLobby(1);
+
+      // Check only first lobby is removed
+      participantLobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participantLobbies.length).to.equal(1);
+      expect(participantLobbies[0]).to.equal(2);
+
+      // Abandon second lobby
+      await mentora.connect(participant1).abandonLobby(2);
+
+      // Check both lobbies are removed
+      participantLobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participantLobbies.length).to.equal(0);
+    });
+
+    it('Should handle sequential abandonment correctly', async function () {
+      const { mentora, participant1, participant2, participant3 } =
+        await createLobbyWithMultipleParticipants();
+
+      // All participants should have the lobby initially
+      let participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      let participant2Lobbies = await mentora
+        .connect(participant2)
+        .getMyLobbiesAsParticipant();
+      let participant3Lobbies = await mentora
+        .connect(participant3)
+        .getMyLobbiesAsParticipant();
+
+      expect(participant1Lobbies.length).to.equal(1);
+      expect(participant2Lobbies.length).to.equal(1);
+      expect(participant3Lobbies.length).to.equal(1);
+
+      // First participant abandons
+      await mentora.connect(participant1).abandonLobby(1);
+
+      participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      participant2Lobbies = await mentora
+        .connect(participant2)
+        .getMyLobbiesAsParticipant();
+      participant3Lobbies = await mentora
+        .connect(participant3)
+        .getMyLobbiesAsParticipant();
+
+      expect(participant1Lobbies.length).to.equal(0);
+      expect(participant2Lobbies.length).to.equal(1);
+      expect(participant3Lobbies.length).to.equal(1);
+
+      // Second participant abandons
+      await mentora.connect(participant2).abandonLobby(1);
+
+      participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      participant2Lobbies = await mentora
+        .connect(participant2)
+        .getMyLobbiesAsParticipant();
+      participant3Lobbies = await mentora
+        .connect(participant3)
+        .getMyLobbiesAsParticipant();
+
+      expect(participant1Lobbies.length).to.equal(0);
+      expect(participant2Lobbies.length).to.equal(0);
+      expect(participant3Lobbies.length).to.equal(1);
+
+      // Third participant abandons
+      await mentora.connect(participant3).abandonLobby(1);
+
+      participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      participant2Lobbies = await mentora
+        .connect(participant2)
+        .getMyLobbiesAsParticipant();
+      participant3Lobbies = await mentora
+        .connect(participant3)
+        .getMyLobbiesAsParticipant();
+
+      expect(participant1Lobbies.length).to.equal(0);
+      expect(participant2Lobbies.length).to.equal(0);
+      expect(participant3Lobbies.length).to.equal(0);
+    });
+
+    it('Should handle rejoin after abandon correctly with lobby lists', async function () {
+      const { mentora, participant1 } = await createLobbyWithOneParticipant();
+
+      // Check initial state
+      let participantLobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participantLobbies.length).to.equal(1);
+      expect(participantLobbies[0]).to.equal(1);
+
+      // Abandon lobby
+      await mentora.connect(participant1).abandonLobby(1);
+
+      // Check lobby is removed
+      participantLobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participantLobbies.length).to.equal(0);
+
+      // Rejoin lobby
+      await mentora.connect(participant1).joinLobby(1, {
+        value: lobbyParams.amountPerParticipant,
+      });
+
+      // Check lobby is added back
+      participantLobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participantLobbies.length).to.equal(1);
+      expect(participantLobbies[0]).to.equal(1);
+    });
+
+    it("Should not affect master's lobby list when participants abandon", async function () {
+      const { mentora, master, participant1, participant2 } =
+        await createLobbyWithMultipleParticipants();
+
+      // Check master has the lobby as master
+      let masterLobbies = await mentora.connect(master).getMyLobbiesAsMaster();
+      expect(masterLobbies.length).to.equal(1);
+      expect(masterLobbies[0]).to.equal(1);
+
+      // Check master doesn't have it as participant
+      let masterParticipantLobbies = await mentora
+        .connect(master)
+        .getMyLobbiesAsParticipant();
+      expect(masterParticipantLobbies.length).to.equal(0);
+
+      // Participants abandon
+      await mentora.connect(participant1).abandonLobby(1);
+      await mentora.connect(participant2).abandonLobby(1);
+
+      // Master should still have it as master
+      masterLobbies = await mentora.connect(master).getMyLobbiesAsMaster();
+      expect(masterLobbies.length).to.equal(1);
+      expect(masterLobbies[0]).to.equal(1);
+
+      // Master still doesn't have it as participant
+      masterParticipantLobbies = await mentora
+        .connect(master)
+        .getMyLobbiesAsParticipant();
+      expect(masterParticipantLobbies.length).to.equal(0);
+    });
+
+    it('Should maintain privacy when abandoning - other users cannot see private lobby lists', async function () {
+      const { mentora, participant1, participant2 } =
+        await createLobbyWithMultipleParticipants();
+
+      // participant1 abandons
+      await mentora.connect(participant1).abandonLobby(1);
+
+      // participant1 should have no lobbies
+      const participant1Lobbies = await mentora
+        .connect(participant1)
+        .getMyLobbiesAsParticipant();
+      expect(participant1Lobbies.length).to.equal(0);
+
+      // participant2 should still have the lobby and shouldn't see participant1's state
+      const participant2Lobbies = await mentora
+        .connect(participant2)
+        .getMyLobbiesAsParticipant();
+      expect(participant2Lobbies.length).to.equal(1);
+      expect(participant2Lobbies[0]).to.equal(1);
+    });
   });
 });
