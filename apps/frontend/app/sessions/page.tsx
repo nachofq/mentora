@@ -402,7 +402,7 @@ export default function SessionsPage() {
 
     try {
       // Make API call to create LiveKit token
-      const response = await fetch('http://localhost:3000/livekit/tokens', {
+      const response = await fetch('https://q585xld0-3000.brs.devtunnels.ms/livekit/tokens', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

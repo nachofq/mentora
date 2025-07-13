@@ -77,7 +77,7 @@ export function VideoConferenceClientImpl(props: {
   }, [room, props.liveKitUrl, props.token, connectOptions, e2eeSetupComplete]);
 
   return (
-    <div className="lk-room-container">
+    <div className="lk-room-container h-full w-full">
       <RoomContext.Provider value={room}>
         <KeyboardShortcuts />
         <VideoConference
