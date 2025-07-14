@@ -912,7 +912,7 @@ export default function SessionsPage() {
                     </p>
                   </div>
                   <Badge variant="outline">
-                    {tokenBalance ? formatEther(tokenBalance) : '0'} MOCK
+                    {tokenBalance ? formatEther(tokenBalance) : '0'} MXNB
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
@@ -924,7 +924,7 @@ export default function SessionsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">
-                      {tokenAllowance ? formatEther(tokenAllowance) : '0'} MOCK
+                      {tokenAllowance ? formatEther(tokenAllowance) : '0'} MXNB
                     </Badge>
                     <Button
                       size="sm"
@@ -993,7 +993,7 @@ export default function SessionsPage() {
                   <div>
                     <Label className="text-sm font-medium">Amount per Participant</Label>
                     <p className="text-sm text-gray-600">
-                      {formatEther(viewSession.amountPerParticipant)} ETH
+                      {formatEther(viewSession.amountPerParticipant)} MXNB
                     </p>
                   </div>
                   <div>
@@ -1110,7 +1110,7 @@ export default function SessionsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="amount-per-participant">Amount per Participant (ETH)</Label>
+                      <Label htmlFor="amount-per-participant">Amount per Participant (MXNB)</Label>
                       <Input
                         id="amount-per-participant"
                         type="number"
@@ -1123,7 +1123,7 @@ export default function SessionsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="total-amount">Total Amount to Pay (ETH)</Label>
+                      <Label htmlFor="total-amount">Total Amount to Pay (MXNB)</Label>
                       <Input
                         id="total-amount"
                         type="number"
@@ -1178,7 +1178,7 @@ export default function SessionsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">
-                          {tokenBalance ? formatEther(tokenBalance) : '0'} MOCK
+                          {tokenBalance ? formatEther(tokenBalance) : '0'} MXNB
                         </Badge>
                       </div>
                     </div>
@@ -1248,7 +1248,7 @@ export default function SessionsPage() {
                                   {session.participants.length}/{Number(session.maxParticipants)}
                                 </TableCell>
                                 <TableCell>
-                                  {formatEther(session.amountPerParticipant)} ETH
+                                  {formatEther(session.amountPerParticipant)} MXNB
                                 </TableCell>
                                 <TableCell>
                                   <Badge variant={getSessionStateVariant(session.state)}>
@@ -1370,7 +1370,7 @@ export default function SessionsPage() {
                                     {session.participants.length}/{Number(session.maxParticipants)}
                                   </TableCell>
                                   <TableCell>
-                                    {formatEther(session.amountPerParticipant)} ETH
+                                    {formatEther(session.amountPerParticipant)} MXNB
                                   </TableCell>
                                   <TableCell>
                                     <Badge variant={getSessionStateVariant(session.state)}>
