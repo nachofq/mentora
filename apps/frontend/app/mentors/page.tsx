@@ -84,15 +84,29 @@ export default function MentorsPage() {
     chainId: arbitrumSepolia.id,
   });
 
-  // Read sessions where user is mentor
+  // Calculate session IDs for the last 5 sessions
+  const getLastSessionIds = () => {
+    if (!sessionCounter || Number(sessionCounter) === 0) return [];
+    const count = Number(sessionCounter);
+    const start = Math.max(1, count - 4); // Get last 5 sessions, but not less than 1
+    const ids = [];
+    for (let i = start; i <= count; i++) {
+      ids.push(i);
+    }
+    return ids;
+  };
+
+  const lastSessionIds = getLastSessionIds();
+
+  // Read last 5 sessions where user is mentor
   const session1 = useReadContract({
     address: CONTRACT_ADDRESSES.SESSIONS,
     abi: SESSIONS_ABI,
     functionName: 'getSessionInfo',
-    args: [BigInt(1)],
+    args: [BigInt(lastSessionIds[0] || 1)],
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: !!sessionCounter && BigInt(sessionCounter) >= 1n,
+      enabled: !!sessionCounter && lastSessionIds.length > 0,
     },
   });
 
@@ -100,10 +114,10 @@ export default function MentorsPage() {
     address: CONTRACT_ADDRESSES.SESSIONS,
     abi: SESSIONS_ABI,
     functionName: 'getSessionInfo',
-    args: [BigInt(2)],
+    args: [BigInt(lastSessionIds[1] || 2)],
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: !!sessionCounter && BigInt(sessionCounter) >= 2n,
+      enabled: !!sessionCounter && lastSessionIds.length > 1,
     },
   });
 
@@ -111,10 +125,32 @@ export default function MentorsPage() {
     address: CONTRACT_ADDRESSES.SESSIONS,
     abi: SESSIONS_ABI,
     functionName: 'getSessionInfo',
-    args: [BigInt(3)],
+    args: [BigInt(lastSessionIds[2] || 3)],
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: !!sessionCounter && BigInt(sessionCounter) >= 3n,
+      enabled: !!sessionCounter && lastSessionIds.length > 2,
+    },
+  });
+
+  const session4 = useReadContract({
+    address: CONTRACT_ADDRESSES.SESSIONS,
+    abi: SESSIONS_ABI,
+    functionName: 'getSessionInfo',
+    args: [BigInt(lastSessionIds[3] || 4)],
+    chainId: arbitrumSepolia.id,
+    query: {
+      enabled: !!sessionCounter && lastSessionIds.length > 3,
+    },
+  });
+
+  const session5 = useReadContract({
+    address: CONTRACT_ADDRESSES.SESSIONS,
+    abi: SESSIONS_ABI,
+    functionName: 'getSessionInfo',
+    args: [BigInt(lastSessionIds[4] || 5)],
+    chainId: arbitrumSepolia.id,
+    query: {
+      enabled: !!sessionCounter && lastSessionIds.length > 4,
     },
   });
 
@@ -123,7 +159,9 @@ export default function MentorsPage() {
     session1.refetch();
     session2.refetch();
     session3.refetch();
-  }, [session1, session2, session3]);
+    session4.refetch();
+    session5.refetch();
+  }, [session1, session2, session3, session4, session5]);
 
   // Complete session transaction
   const {
@@ -186,17 +224,18 @@ export default function MentorsPage() {
       const sessionsData: Array<SessionInfo & { id: number }> = [];
 
       // Process each session query
-      const sessionQueries = [session1, session2, session3];
+      const sessionQueries = [session1, session2, session3, session4, session5];
 
       sessionQueries.forEach((query, index) => {
         if (query.data) {
           const sessionInfo = query.data;
           const mentorAddress = sessionInfo[1];
+          const actualSessionId = lastSessionIds[index] || index + 1;
 
           // Only include sessions where current user is the mentor
           if (mentorAddress.toLowerCase() === address.toLowerCase()) {
             sessionsData.push({
-              id: index + 1,
+              id: actualSessionId,
               creator: sessionInfo[0],
               mentor: sessionInfo[1],
               startTime: sessionInfo[2],
@@ -225,6 +264,8 @@ export default function MentorsPage() {
     session1.data,
     session2.data,
     session3.data,
+    session4.data,
+    session5.data,
     address,
     mentorData?.registered,
   ]);
