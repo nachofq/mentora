@@ -36,6 +36,26 @@ services:
       - ../apps/backend:/app
       - /app/node_modules
 
+  # frontend:
+  #   # image: ifqdev/mentora-frontend:latest
+  #   build:
+  #     context: ../apps/frontend
+  #     dockerfile: Dockerfile
+  #   container_name: mentora_frontend
+  #   env_file:
+  #     - ../envs/.env.frontend
+  #   ports:
+  #     - '3001:3001'
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   networks:
+  #     - mentora_network
+  #   command: sleep 3600
+  #   # volumes:
+  #   #   - ../apps/frontend:/app
+  #   #   - /app/node_modules
+
 volumes:
   postgres_data:
     name: mentora_postgres_data
