@@ -1,22 +1,23 @@
 # Mentora
 
-**Mentora** is a decentralized platform that revolutionizes mentorship through group-based learning and knowledge monetization. Connect with expert mentors worldwide through collaborative video sessions where mentees pay less and mentors earn more, making high quality education accessible to everyone, everywhere. 
+**Mentora** is a decentralized platform that revolutionizes mentorship through group-based learning and knowledge monetization. Connect with expert mentors worldwide through collaborative video sessions where mentees pay less and mentors earn more, making high quality education accessible to everyone, everywhere.
 
 # Problem to solve
 
-Traditionally, one-on-one mentoring is expensive and inaccessible. Group mentoring with shared costs reduces this barrier. 
+Traditionally, one-on-one mentoring is expensive and inaccessible. Group mentoring with shared costs reduces this barrier.
 
 For instance, an expert consultant in North America might charge around USD $300 - $500 per hour, this cost is prohibited for most professionals, entrepreneurs or students in developing countries.
 
 On the other hand, experts in several fields struggle to monetize their knowledge and there is no royalties benefit from the content generated in regular mentorship platforms, this is because those companies do not share or monetize the sessions.
 
-
 # Our solution
+
 We are building a decentralized marketplace for group mentoring on Arbitrum, designed to make expert knowledge more accessible and economically sustainable for both mentors and mentees.
 
 The platform introduces group mentoring sessions with dynamic pricing that creates a win-win scenario: **mentees pay significantly less while mentors earn substantially more** by scaling their time across multiple participants.
 
 **How it works:**
+
 - A mentor typically charges 100 USDC per hour for one-on-one sessions
 - With group sessions, the same mentor can serve multiple mentees simultaneously
 - **Example**: In a 4-person group session, each mentee pays only 50 USDC (50% savings), while the mentor earns 200 USDC total (100% increase in earnings)
@@ -30,13 +31,11 @@ This project leverages Arbitrum’s scalability and cost-efficiency to pioneer a
 
 In future, we will introduce the royalties marketplace feature, where both mentors and mentees can sell or trade their rights to future earnings from session content. All transactions—bookings, rentals, royalty splits, and rights transfers—are governed by smart contracts deployed on Arbitrum to ensure transparency, fairness, and low fees.
 
-
 ---
 
 ## Repository layout
 
 Our solution couples secure on-chain payments with LiveKit’s real-time video infrastructure to deliver a smooth end-to-end experience for both participants and mentors.
-
 
 ```
 apps/
@@ -60,6 +59,15 @@ envs/          # Place your .env files here (git-ignored)
   - `Mentors.sol` – registry of verified mentors.
   - `Sessions.sol` – create / join / accept / complete paid sessions with configurable platform fee.
 - Built and tested with Hardhat + Typechain.
+
+Arbitrum Sepolia Smart Contracts
+
+| Contract     | Address                                    |
+| ------------ | ------------------------------------------ |
+| MENTORS      | 0x3eA2Aba955389A4095fdAB4Aafc56aB3dCCd185A |
+| SESSIONS     | 0xDaBE0B560810Ae110Fc0a20AF3393C56B610B94c |
+| PARTICIPANTS | 0xE58ff2f51c07B830c5f9e22000319cEC3b616ea8 |
+| MOCK_ERC20   | 0x062Bd36A8ca54b41f0ed97e342b16c48a6bebb80 |
 
 ### Frontend (`apps/frontend`)
 
