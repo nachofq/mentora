@@ -705,7 +705,7 @@ export default function MentorsPage() {
                                     {session.participants.length}/{Number(session.maxParticipants)}
                                   </TableCell>
                                   <TableCell>
-                                    {formatEther(session.amountPerParticipant)} ETH
+                                    {formatEther(session.amountPerParticipant)} MXNB
                                   </TableCell>
                                   <TableCell>
                                     <Badge variant={getSessionStateVariant(session.state)}>
