@@ -449,7 +449,7 @@ export default function SessionsPage() {
 
     try {
       // Make API call to create LiveKit token
-      const response = await fetch('http://localhost:3000/livekit/tokens', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/livekit/tokens`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

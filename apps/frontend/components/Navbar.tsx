@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import Image from 'next/image';
 import { WalletConnector } from '@/lib/WalletConnector';
 import { useAccount, useReadContract } from 'wagmi';
 import { CONTRACT_ADDRESSES, MENTORS_ABI } from '@/lib/contracts';
@@ -27,7 +28,16 @@ export function Navbar() {
       <div className={styles.navContent}>
         <div className={styles.logo}>
           <Link href="/">
-            <h2>MENTORA</h2>
+            <div className="flex items-center gap-2">
+              <Image
+                src="/logo.png"
+                alt="Mentora Logo"
+                width={64}
+                height={64}
+                className="rounded-sm"
+              />
+              <h2>MENTORA</h2>
+            </div>
           </Link>
         </div>
         <div className={styles.navLinks}>
