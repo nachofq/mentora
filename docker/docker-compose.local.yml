@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mentora_postgres
+    env_file:
+      - ../envs/.env.postgres
+    ports:
+      - '5442:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mentora_network
+
+  backend:
+    build:
+      context: ../apps/backend
+      dockerfile: Dockerfile
+    container_name: mentora_backend
+    env_file:
+      - ../envs/.env.backend
+    ports:
+      - '3000:3000'
+      - '10000:9999'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mentora_network
+    command: npm run start:debug
+    volumes:
+      - ../apps/backend:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:
+    name: mentora_postgres_data
+
+networks:
+  mentora_network:
+    name: mentora_network

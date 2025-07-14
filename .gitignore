@@ -1,0 +1,6 @@
+.env.backend
+.env.postgres
+.env.contracts
+.env.frontend
+node_modules
+dist

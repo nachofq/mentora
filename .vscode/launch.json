@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend",
+      "type": "node",
+      "request": "attach",
+      "restart": true,
+      "port": 10000,
+      "address": "localhost",
+      "localRoot": "${workspaceRoot}/apps/backend",
+      "remoteRoot": "/app",
+      "protocol": "inspector",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}
