@@ -116,15 +116,29 @@ export default function SessionsPage() {
     },
   });
 
-  // Read first few sessions individually (up to 5 sessions for now)
+  // Calculate session IDs for the last 5 sessions
+  const getLastSessionIds = () => {
+    if (!sessionCounter || Number(sessionCounter) === 0) return [];
+    const count = Number(sessionCounter);
+    const start = Math.max(1, count - 4); // Get last 5 sessions, but not less than 1
+    const ids = [];
+    for (let i = start; i <= count; i++) {
+      ids.push(i);
+    }
+    return ids;
+  };
+
+  const lastSessionIds = getLastSessionIds();
+
+  // Read last 5 sessions individually
   const session1 = useReadContract({
     address: CONTRACT_ADDRESSES.SESSIONS,
     abi: SESSIONS_ABI,
     functionName: 'getSessionInfo',
-    args: [BigInt(1)],
+    args: [BigInt(lastSessionIds[0] || 1)],
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: !!sessionCounter && BigInt(sessionCounter) >= 1n,
+      enabled: !!sessionCounter && lastSessionIds.length > 0,
     },
   });
 
@@ -132,10 +146,10 @@ export default function SessionsPage() {
     address: CONTRACT_ADDRESSES.SESSIONS,
     abi: SESSIONS_ABI,
     functionName: 'getSessionInfo',
-    args: [BigInt(2)],
+    args: [BigInt(lastSessionIds[1] || 2)],
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: !!sessionCounter && BigInt(sessionCounter) >= 2n,
+      enabled: !!sessionCounter && lastSessionIds.length > 1,
     },
   });
 
@@ -143,10 +157,32 @@ export default function SessionsPage() {
     address: CONTRACT_ADDRESSES.SESSIONS,
     abi: SESSIONS_ABI,
     functionName: 'getSessionInfo',
-    args: [BigInt(3)],
+    args: [BigInt(lastSessionIds[2] || 3)],
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: !!sessionCounter && BigInt(sessionCounter) >= 3n,
+      enabled: !!sessionCounter && lastSessionIds.length > 2,
+    },
+  });
+
+  const session4 = useReadContract({
+    address: CONTRACT_ADDRESSES.SESSIONS,
+    abi: SESSIONS_ABI,
+    functionName: 'getSessionInfo',
+    args: [BigInt(lastSessionIds[3] || 4)],
+    chainId: arbitrumSepolia.id,
+    query: {
+      enabled: !!sessionCounter && lastSessionIds.length > 3,
+    },
+  });
+
+  const session5 = useReadContract({
+    address: CONTRACT_ADDRESSES.SESSIONS,
+    abi: SESSIONS_ABI,
+    functionName: 'getSessionInfo',
+    args: [BigInt(lastSessionIds[4] || 5)],
+    chainId: arbitrumSepolia.id,
+    query: {
+      enabled: !!sessionCounter && lastSessionIds.length > 4,
     },
   });
 
@@ -155,6 +191,8 @@ export default function SessionsPage() {
     session1.refetch();
     session2.refetch();
     session3.refetch();
+    session4.refetch();
+    session5.refetch();
   };
 
   // Load sessions from contract
@@ -178,18 +216,19 @@ export default function SessionsPage() {
     const sessionsData: SessionDisplay[] = [];
 
     // Process each session query
-    const sessionQueries = [session1, session2, session3];
+    const sessionQueries = [session1, session2, session3, session4, session5];
 
     sessionQueries.forEach((query, index) => {
-      console.log(`Session ${index + 1} query:`, {
+      console.log(`Session ${lastSessionIds[index] || index + 1} query:`, {
         data: query.data,
         isLoading: query.isLoading,
         error: query.error?.message || query.error,
-        isEnabled: !!sessionCounter && BigInt(sessionCounter) >= BigInt(index + 1),
+        isEnabled: !!sessionCounter && lastSessionIds.length > index,
       });
       if (query.data) {
         const sessionInfo = query.data;
-        console.log(`Session ${index + 1} raw data:`, sessionInfo);
+        const actualSessionId = lastSessionIds[index] || index + 1;
+        console.log(`Session ${actualSessionId} raw data:`, sessionInfo);
 
         // Validate that the session has valid data
         // Check if creator is not the zero address and has valid start time
@@ -203,7 +242,7 @@ export default function SessionsPage() {
           Number(startTime) > 0
         ) {
           sessionsData.push({
-            id: index + 1,
+            id: actualSessionId,
             creator: sessionInfo[0],
             mentor: sessionInfo[1],
             startTime: sessionInfo[2],
@@ -216,12 +255,12 @@ export default function SessionsPage() {
             isPrivateSession: sessionInfo[9],
             marketplace: sessionInfo[10],
           });
-          console.log(`Session ${index + 1} added to sessionsData`);
+          console.log(`Session ${actualSessionId} added to sessionsData`);
         } else {
-          console.log(`Session ${index + 1} failed validation, skipping`);
+          console.log(`Session ${actualSessionId} failed validation, skipping`);
         }
       } else {
-        console.log(`Session ${index + 1} has no data`);
+        console.log(`Session ${lastSessionIds[index] || index + 1} has no data`);
       }
     });
 
@@ -232,14 +271,22 @@ export default function SessionsPage() {
       `Final result: Loaded ${sessionsData.length} out of ${sessionCounter} sessions`,
       sessionsData,
     );
-  }, [sessionCounter, session1.data, session2.data, session3.data]);
+  }, [sessionCounter, session1.data, session2.data, session3.data, session4.data, session5.data]);
 
   // Load sessions when sessionCounter changes or session queries complete
   useEffect(() => {
     if (sessionCounter !== undefined) {
       loadSessions();
     }
-  }, [sessionCounter, session1.data, session2.data, session3.data, loadSessions]);
+  }, [
+    sessionCounter,
+    session1.data,
+    session2.data,
+    session3.data,
+    session4.data,
+    session5.data,
+    loadSessions,
+  ]);
 
   // Filter sessions for different tabs
   const allSessions = sessions; // Show all sessions in Browse section
@@ -402,7 +449,7 @@ export default function SessionsPage() {
 
     try {
       // Make API call to create LiveKit token
-      const response = await fetch('https://q585xld0-3000.brs.devtunnels.ms/livekit/tokens', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/livekit/tokens`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
