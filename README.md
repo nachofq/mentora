@@ -1,193 +1,161 @@
 # Mentora
 
-A modern full-stack application built with NestJS backend, PostgreSQL database, and LiveKit integration for real-time communication features.
+Mentora is a crypto-native platform that lets anyone book collaborative video sessions with mentors across the globe and pay for them in the same, borderless flow. It couples secure on-chain payments with LiveKit’s real-time video infrastructure to deliver a smooth end-to-end experience for both participants and mentors.
 
-## 🏗️ Architecture
+---
 
-Mentora is structured as a monorepo with the following components:
+## Repository layout
 
-- **Backend**: NestJS TypeScript API with LiveKit integration
-- **Frontend**: (Coming soon)
-- **Contracts**: Shared types and interfaces
-- **Database**: PostgreSQL with Docker support
+```
+apps/
+├─ backend     # NestJS API – issues LiveKit access tokens and (soon) more
+├─ contracts   # Solidity smart contracts – sessions, mentors, participants and payments
+└─ frontend    # Next.js + LiveKit prototype – integrates with both backend & contracts
+docker/        # Docker compose files for local dev
+envs/          # Place your .env files here (git-ignored)
+```
 
-## 🚀 Features
+### Backend (`apps/backend`)
 
-- RESTful API built with NestJS
-- Real-time communication powered by LiveKit
-- PostgreSQL database with health checks
-- Docker containerization for easy development
-- Hot reload development environment
+- **Stack**: NestJS, PostgreSQL
+- **Today**: exposes a tiny REST API that manages LiveKit rooms and mints JWT access tokens so users can join them.
+- **Tomorrow**: off-chain indexing, email notifications, analytics … we haven't decided yet.
+- Runs inside Docker and connects to the `postgres` service defined in `docker/docker-compose.local.yml`.
 
-## 📋 Prerequisites
+### Smart contracts (`apps/contracts`)
 
-Before running this project, make sure you have the following installed:
+- Solidity contracts that codify all business logic:
+  - `Mentors.sol` – registry of verified mentors.
+  - `Sessions.sol` – create / join / accept / complete paid sessions with configurable platform fee.
+- Built and tested with Hardhat + Typechain.
 
-- [Node.js](https://nodejs.org/) (v22 or higher)
-- [Yarn](https://yarnpkg.com/) package manager
-- [Docker](https://www.docker.com/) and Docker Compose
-- [Git](https://git-scm.com/)
+### Frontend (`apps/frontend`)
 
-## 🛠️ Installation
+- Next.js 14 App Router.
+- Uses `@livekit/components-react` for the video UI.
+- PoC that demonstrates a happy-path flow:
+  1. Creates or joins a session on-chain.
+  2. Requests an access token from the backend.
+  3. Joins the LiveKit room.
 
-1. **Clone the repository**
+---
 
-   ```bash
-   git clone git@github.com:nachofq/mentora.git
-   cd mentora
-   ```
+## Quick start
 
-2. **Configure environment variables**
+Prerequisites: **Docker + Docker Compose, Node 18+, Yarn or PNPM**.
 
-   Copy the example environment files and configure them:
-
-   ```bash
-   cp envs/env.backend.example envs/.env.backend
-   cp envs/env.postgres.example envs/.env.postgres
-   ```
-
-   **Backend Environment (.env.backend):**
-
-   ```env
-   DATABASE_URL=postgresql://mentora-adm:mentora-adm-pwd@mentora:5432/mentora
-   NODE_ENV=development
-   LIVEKIT_URL=your_livekit_url_here
-   LIVEKIT_API_KEY=your_livekit_api_key_here
-   LIVEKIT_API_SECRET=your_livekit_api_secret_here
-   ```
-
-   **PostgreSQL Environment (.env.postgres):**
-
-   ```env
-   POSTGRES_USER=mentora-adm
-   POSTGRES_PASSWORD=mentora-adm-pwd
-   POSTGRES_DB=mentora
-   ```
-
-## 🏃‍♂️ Running the Application
-
-### Development Mode
-
-To start the application in development mode with hot reload and automatic rebuilding:
+Clone the repo
 
 ```bash
-yarn start:dev:build
+git clone https://github.com/your-org/mentora.git
+cd mentora
 ```
 
-This command will:
+### 1. Environment variables
 
-- Build and start all Docker containers
-- Set up PostgreSQL database with health checks
-- Start the NestJS backend with debug mode enabled
-- Enable hot reload for development
+Create the `envs` files (check the examples!):
 
-### Development Mode (without rebuild)
+`envs/.env.postgres`
 
-If containers are already built and you want to start them without rebuilding:
+```env
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=mentora
+```
+
+`envs/.env.backend`
+
+```env
+# API
+PORT=3000
+
+# LiveKit credentials
+LIVEKIT_URL=https://your-livekit.example.com
+LIVEKIT_API_KEY=LKxxxx
+LIVEKIT_API_SECRET=supersecret
+
+# Database
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/mentora
+```
+
+`envs/.env.frontend`
+
+```env
+LIVEKIT_API_KEY=
+LIVEKIT_API_SECRET=
+LIVEKIT_URL=https://your-livekit.example.com
+NEXT_PUBLIC_SHOW_SETTINGS_MENU=true
+NEXT_PUBLIC_RAINBOW_KIT_PROJECT_ID=
+```
+
+### 2. Start the backend + Postgres with Docker
+
+From the repository root run:
 
 ```bash
-yarn start:dev
+npm run start:dev            # hot-reloaded backend
+# or
+npm run start:dev:build      # builds the backend image the first time
 ```
 
-### Accessing the Application
+The API will be available at http://localhost:3000 once the containers are healthy.
 
-Once running, you can access:
+Key endpoints (see `apps/backend/src/livekit`):
 
-- **Backend API**: http://localhost:3000
-- **Backend Debug Port**: localhost:10000 (for debugging)
-- **PostgreSQL Database**: localhost:5442
-  - Username: `mentora-adm`
-  - Password: `mentora-adm-pwd`
-  - Database: `mentora`
+| Method | Path                   | Description                                     |
+| ------ | ---------------------- | ----------------------------------------------- |
+| POST   | `/livekit/rooms`       | Create a new LiveKit room                       |
+| GET    | `/livekit/rooms`       | List rooms                                      |
+| DELETE | `/livekit/rooms`       | Delete **all** rooms                            |
+| DELETE | `/livekit/rooms/:name` | Delete a single room                            |
+| POST   | `/livekit/tokens`      | Mint an access token (`{ sessionId, address }`) |
 
-## 🧪 Testing
+### 3. Run the contracts locally (optional)
 
-### API Testing with HTTP Client
+```bash
+cd apps/contracts
+pnpm install
+npx hardhat compile
+# test suite is deprecated, correspond to an old contract version
+# We keep the files for the record for building the new test suite.
+# npx hardhat test
 
-The project includes an `api-client.http` file located in `apps/backend/api-client.http` that provides a convenient way to test your backend API endpoints directly from your IDE.
-
-#### Prerequisites for API Testing
-
-1. **Install REST Client Extension** (for VS Code):
-
-   - Extension: [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client)
-
-2. **Ensure the backend is running**:
-   ```bash
-   yarn start:dev:build
-   ```
-
-#### Available Test Endpoints
-
-The api-client file includes the following test scenarios:
-
-- **Health Check**: Verify that the backend server is running
-
-  ```http
-  GET http://localhost:3000/health
-  ```
-
-- **LiveKit Room Creation**: Test creating new LiveKit rooms
-
-  ```http
-  POST http://localhost:3000/livekit/create-room
-  ```
-
-- **LiveKit Token Generation**: Test LiveKit token creation
-  ```http
-  POST http://localhost:3000/livekit/create-token
-  ```
-
-#### How to Use the API Client
-
-1. **Open the file**: Navigate to `apps/backend/api-client.http` in your IDE
-2. **Run requests**: Click the "Send Request" button above each HTTP request (VS Code with REST Client extension)
-3. **View responses**: Results will appear in a new panel showing status codes, headers, and response bodies
-4. **Test different environments**: The file includes variables for development and production testing
-
-#### Environment Variables in API Client
-
-The file uses convenient variables:
-
-- `@baseUrl = http://localhost:3000` - Development server URL
-- `@contentType = application/json` - Standard content type
-- `@devUrl` and `@prodUrl` - Environment-specific URLs
-
-#### Example Usage
-
-1. Start your development environment:
-
-   ```bash
-   yarn start:dev:build
-   ```
-
-2. Open `apps/backend/api-client.http` in VS Code
-3. Click "Send Request" above the Health Check endpoint to verify your server is running
-4. Test LiveKit endpoints to ensure proper integration
-5. Modify requests as needed for your specific testing scenarios
-
-This approach provides a simple, IDE-integrated way to test your API without needing external tools like Postman or curl commands.
-
-## 🐳 Docker Services
-
-The application uses Docker Compose with the following services:
-
-- **postgres**: PostgreSQL 16 Alpine with health checks
-- **backend**: NestJS application with debug support and volume mounting
-
-## 📁 Project Structure
-
+# start an ephemeral local chain
+npx hardhat node
+# deploy to the local chain
+npx hardhat run scripts/deploy2-arbitrum-sepolia.ts --network localhost
 ```
-mentora/
-├── apps/
-│   ├── backend/          # NestJS backend application
-│   ├── frontend/         # Frontend application (coming soon)
-│   └── contracts/        # Shared types and interfaces
-├── docker/
-│   └── docker-compose.local.yml  # Docker Compose configuration
-├── envs/
-│   ├── env.backend.example       # Backend environment template
-│   └── env.postgres.example      # PostgreSQL environment template
-├── package.json          # Root package configuration
-└── README.md
+
+### 4. Run the frontend
+
+```bash
+cd apps/frontend
+pnpm install
+pnpm dev
 ```
+
+Navigate to http://localhost:3001 (or the port Next chooses) and try creating / joining a session.
+Note: If you are testing this locally, you'll need to modify the smart contract addresses in apps/frontend/lib/contracts/addresses.ts
+We will be migrating this values to envs soon.
+
+---
+
+## Roadmap
+
+1. Wallet-based auth & role management.
+2. Mentor discovery marketplace.
+3. Calendar availability & scheduling.
+4. Fiat on-ramps & L2 support.
+5. Recording & transcription of sessions.
+
+---
+
+## Contributing
+
+PRs and issues are welcome! Check out the tasks in the project board or open an issue to discuss ideas.
+
+---
+
+## License
+
+MIT © 2024 Mentora contributors
