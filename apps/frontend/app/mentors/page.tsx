@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { arbitrumSepolia } from 'wagmi/chains';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -80,7 +80,7 @@ export default function MentorsPage() {
   const { data: sessionCounter } = useReadContract({
     address: CONTRACT_ADDRESSES.SESSIONS,
     abi: SESSIONS_ABI,
-    functionName: '_sessionCounter',
+    functionName: 'sessionCounter',
     chainId: arbitrumSepolia.id,
   });
 
@@ -92,7 +92,7 @@ export default function MentorsPage() {
     args: [BigInt(1)],
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: !!sessionCounter && sessionCounter >= 1n,
+      enabled: !!sessionCounter && BigInt(sessionCounter) >= 1n,
     },
   });
 
@@ -103,7 +103,7 @@ export default function MentorsPage() {
     args: [BigInt(2)],
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: !!sessionCounter && sessionCounter >= 2n,
+      enabled: !!sessionCounter && BigInt(sessionCounter) >= 2n,
     },
   });
 
@@ -114,9 +114,16 @@ export default function MentorsPage() {
     args: [BigInt(3)],
     chainId: arbitrumSepolia.id,
     query: {
-      enabled: !!sessionCounter && sessionCounter >= 3n,
+      enabled: !!sessionCounter && BigInt(sessionCounter) >= 3n,
     },
   });
+
+  // Force refetch all session data
+  const refetchSessions = useCallback(() => {
+    session1.refetch();
+    session2.refetch();
+    session3.refetch();
+  }, [session1, session2, session3]);
 
   // Complete session transaction
   const {
@@ -131,6 +138,30 @@ export default function MentorsPage() {
       hash: completeHash,
     });
 
+  // Accept session transaction
+  const {
+    writeContract: acceptSession,
+    data: acceptHash,
+    isPending: acceptPending,
+    error: acceptError,
+  } = useWriteContract();
+
+  const { isLoading: acceptConfirming, isSuccess: acceptConfirmed } = useWaitForTransactionReceipt({
+    hash: acceptHash,
+  });
+
+  // Cancel session transaction
+  const {
+    writeContract: cancelSession,
+    data: cancelHash,
+    isPending: cancelPending,
+    error: cancelError,
+  } = useWriteContract();
+
+  const { isLoading: cancelConfirming, isSuccess: cancelConfirmed } = useWaitForTransactionReceipt({
+    hash: cancelHash,
+  });
+
   // Update mentor data when contract data changes
   useEffect(() => {
     if (mentorDataResult) {
@@ -143,50 +174,49 @@ export default function MentorsPage() {
     }
   }, [mentorDataResult]);
 
-  // Load mentor sessions
-  const loadMentorSessions = async () => {
-    if (!sessionCounter || sessionCounter === 0n || !address) {
-      setMentorSessions([]);
-      return;
-    }
-
-    setLoadingMentorSessions(true);
-    const sessionsData: Array<SessionInfo & { id: number }> = [];
-
-    // Process each session query
-    const sessionQueries = [session1, session2, session3];
-
-    sessionQueries.forEach((query, index) => {
-      if (query.data) {
-        const sessionInfo = query.data;
-        const mentorAddress = sessionInfo[1];
-
-        // Only include sessions where current user is the mentor
-        if (mentorAddress.toLowerCase() === address.toLowerCase()) {
-          sessionsData.push({
-            id: index + 1,
-            creator: sessionInfo[0],
-            mentor: sessionInfo[1],
-            startTime: sessionInfo[2],
-            endTime: sessionInfo[3],
-            amountPerParticipant: sessionInfo[4],
-            maxParticipants: sessionInfo[5],
-            participants: [...sessionInfo[6]],
-            state: sessionInfo[7],
-            sessionDeposit: sessionInfo[8],
-            isPrivateSession: sessionInfo[9],
-            marketplace: sessionInfo[10],
-          });
-        }
-      }
-    });
-
-    setMentorSessions(sessionsData);
-    setLoadingMentorSessions(false);
-  };
-
   // Load mentor sessions when data changes
   useEffect(() => {
+    const loadMentorSessions = async () => {
+      if (!sessionCounter || sessionCounter === 0n || !address) {
+        setMentorSessions([]);
+        return;
+      }
+
+      setLoadingMentorSessions(true);
+      const sessionsData: Array<SessionInfo & { id: number }> = [];
+
+      // Process each session query
+      const sessionQueries = [session1, session2, session3];
+
+      sessionQueries.forEach((query, index) => {
+        if (query.data) {
+          const sessionInfo = query.data;
+          const mentorAddress = sessionInfo[1];
+
+          // Only include sessions where current user is the mentor
+          if (mentorAddress.toLowerCase() === address.toLowerCase()) {
+            sessionsData.push({
+              id: index + 1,
+              creator: sessionInfo[0],
+              mentor: sessionInfo[1],
+              startTime: sessionInfo[2],
+              endTime: sessionInfo[3],
+              amountPerParticipant: sessionInfo[4],
+              maxParticipants: sessionInfo[5],
+              participants: [...sessionInfo[6]],
+              state: sessionInfo[7],
+              sessionDeposit: sessionInfo[8],
+              isPrivateSession: sessionInfo[9],
+              marketplace: sessionInfo[10],
+            });
+          }
+        }
+      });
+
+      setMentorSessions(sessionsData);
+      setLoadingMentorSessions(false);
+    };
+
     if (sessionCounter !== undefined && address && mentorData?.registered) {
       loadMentorSessions();
     }
@@ -269,9 +299,9 @@ export default function MentorsPage() {
   useEffect(() => {
     if (completeConfirmed) {
       toast.success('Session completed successfully!', { id: 'complete-session' });
-      loadMentorSessions();
+      refetchSessions();
     }
-  }, [completeConfirmed]);
+  }, [completeConfirmed, refetchSessions]);
 
   // Handle complete session errors
   useEffect(() => {
@@ -279,6 +309,62 @@ export default function MentorsPage() {
       toast.error('Failed to complete session', { id: 'complete-session' });
     }
   }, [completeError]);
+
+  // Handle accept session transaction states
+  useEffect(() => {
+    if (acceptPending) {
+      toast.loading('Accepting session...', { id: 'accept-session' });
+    }
+  }, [acceptPending]);
+
+  useEffect(() => {
+    if (acceptConfirming) {
+      toast.loading('Waiting for confirmation...', { id: 'accept-session' });
+    }
+  }, [acceptConfirming]);
+
+  useEffect(() => {
+    if (acceptConfirmed) {
+      toast.success('Session accepted successfully!', { id: 'accept-session' });
+      refetchSessions();
+    }
+  }, [acceptConfirmed, refetchSessions]);
+
+  // Handle accept session errors
+  useEffect(() => {
+    if (acceptError) {
+      toast.error('Failed to accept session', { id: 'accept-session' });
+    }
+  }, [acceptError]);
+
+  // Handle cancel session transaction states
+  useEffect(() => {
+    if (cancelPending) {
+      toast.loading('Cancelling session...', { id: 'cancel-session' });
+    }
+  }, [cancelPending]);
+
+  useEffect(() => {
+    if (cancelConfirming) {
+      toast.loading('Waiting for confirmation...', { id: 'cancel-session' });
+    }
+  }, [cancelConfirming]);
+
+  useEffect(() => {
+    if (cancelConfirmed) {
+      toast.success('Session cancelled successfully! All participants have been refunded.', {
+        id: 'cancel-session',
+      });
+      refetchSessions();
+    }
+  }, [cancelConfirmed, refetchSessions]);
+
+  // Handle cancel session errors
+  useEffect(() => {
+    if (cancelError) {
+      toast.error('Failed to cancel session', { id: 'cancel-session' });
+    }
+  }, [cancelError]);
 
   const handleCreateMentor = async () => {
     if (!address) {
@@ -339,6 +425,46 @@ export default function MentorsPage() {
     }
   };
 
+  const handleAcceptSession = async (sessionId: number) => {
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      acceptSession({
+        address: CONTRACT_ADDRESSES.SESSIONS,
+        abi: SESSIONS_ABI,
+        functionName: 'acceptSession',
+        args: [BigInt(sessionId)],
+        chainId: arbitrumSepolia.id,
+      });
+    } catch (error) {
+      console.error('Error accepting session:', error);
+      toast.error('Failed to accept session');
+    }
+  };
+
+  const handleCancelSession = async (sessionId: number) => {
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      cancelSession({
+        address: CONTRACT_ADDRESSES.SESSIONS,
+        abi: SESSIONS_ABI,
+        functionName: 'cancelSession',
+        args: [BigInt(sessionId)],
+        chainId: arbitrumSepolia.id,
+      });
+    } catch (error) {
+      console.error('Error cancelling session:', error);
+      toast.error('Failed to cancel session');
+    }
+  };
+
   const formatTimestamp = (timestamp: bigint) => {
     return new Date(Number(timestamp) * 1000).toLocaleString();
   };
@@ -375,59 +501,65 @@ export default function MentorsPage() {
 
   if (!isConnected) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Card className="max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle>Connect Your Wallet</CardTitle>
-            <CardDescription>
-              Please connect your wallet to access the mentor dashboard.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="scrollable-page">
+        <div className="container mx-auto px-4 py-8">
+          <Card className="max-w-md mx-auto">
+            <CardHeader>
+              <CardTitle>Connect Your Wallet</CardTitle>
+              <CardDescription>
+                Please connect your wallet to access the mentor dashboard.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
       </div>
     );
   }
 
   if (loadingMentorData) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Card className="max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle>Loading...</CardTitle>
-            <CardDescription>Loading mentor data...</CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="scrollable-page">
+        <div className="container mx-auto px-4 py-8">
+          <Card className="max-w-md mx-auto">
+            <CardHeader>
+              <CardTitle>Loading...</CardTitle>
+              <CardDescription>Loading mentor data...</CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
       </div>
     );
   }
 
   if (mentorDataError) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Card className="max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle>Error</CardTitle>
-            <CardDescription>
-              Failed to load mentor data. Please try refreshing the page.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="scrollable-page">
+        <div className="container mx-auto px-4 py-8">
+          <Card className="max-w-md mx-auto">
+            <CardHeader>
+              <CardTitle>Error</CardTitle>
+              <CardDescription>
+                Failed to load mentor data. Please try refreshing the page.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-h-screen overflow-hidden">
-      <div className="max-w-4xl mx-auto h-full flex flex-col">
-        <div className="mb-8 flex-shrink-0">
-          <h1 className="text-3xl font-bold mb-2">Mentor Dashboard</h1>
-          <p className="text-gray-600">
-            Manage your mentor profile and track your mentoring sessions.
-          </p>
-        </div>
+    <div className="scrollable-page">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold mb-2">Mentor Dashboard</h1>
+            <p className="text-gray-600">
+              Manage your mentor profile and track your mentoring sessions.
+            </p>
+          </div>
 
-        <ScrollArea className="flex-1">
-          <div className="space-y-6 pr-4">
+          <div className="space-y-6">
             {!mentorData?.registered ? (
               <Card>
                 <CardHeader>
@@ -549,24 +681,26 @@ export default function MentorsPage() {
                           {mentorSessions.length} session{mentorSessions.length === 1 ? '' : 's'}{' '}
                           found
                         </p>
-                        <div className="border rounded-lg">
+                        <div className="border rounded-lg overflow-x-auto">
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead>Session ID</TableHead>
-                                <TableHead>Start Time</TableHead>
-                                <TableHead>Participants</TableHead>
-                                <TableHead>Amount</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Type</TableHead>
-                                <TableHead>Actions</TableHead>
+                                <TableHead className="min-w-[80px]">Session ID</TableHead>
+                                <TableHead className="min-w-[140px]">Start Time</TableHead>
+                                <TableHead className="min-w-[100px]">Participants</TableHead>
+                                <TableHead className="min-w-[100px]">Amount</TableHead>
+                                <TableHead className="min-w-[80px]">Status</TableHead>
+                                <TableHead className="min-w-[120px]">Type</TableHead>
+                                <TableHead className="min-w-[200px]">Actions</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {mentorSessions.map((session) => (
                                 <TableRow key={session.id}>
-                                  <TableCell>#{session.id}</TableCell>
-                                  <TableCell>{formatTimestamp(session.startTime)}</TableCell>
+                                  <TableCell className="font-medium">#{session.id}</TableCell>
+                                  <TableCell className="text-sm">
+                                    {formatTimestamp(session.startTime)}
+                                  </TableCell>
                                   <TableCell>
                                     {session.participants.length}/{Number(session.maxParticipants)}
                                   </TableCell>
@@ -593,20 +727,60 @@ export default function MentorsPage() {
                                     </div>
                                   </TableCell>
                                   <TableCell>
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-1 flex-wrap">
+                                      {/* Accept button for Created sessions */}
+                                      {session.state === 0 && (
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleAcceptSession(session.id)}
+                                          disabled={acceptPending || acceptConfirming}
+                                          className="mb-1"
+                                        >
+                                          {acceptPending || acceptConfirming
+                                            ? 'Accepting...'
+                                            : 'Accept'}
+                                        </Button>
+                                      )}
+
+                                      {/* Complete button for Accepted sessions */}
                                       {session.state === 1 && (
                                         <Button
                                           size="sm"
                                           variant="outline"
                                           onClick={() => handleCompleteSession(session.id)}
                                           disabled={completePending || completeConfirming}
+                                          className="mb-1"
                                         >
-                                          Complete
+                                          {completePending || completeConfirming
+                                            ? 'Completing...'
+                                            : 'Complete'}
                                         </Button>
                                       )}
-                                      {session.state === 0 && (
-                                        <Badge variant="secondary" className="text-xs">
-                                          Waiting for participants
+
+                                      {/* Cancel button for Created or Accepted sessions */}
+                                      {(session.state === 0 || session.state === 1) && (
+                                        <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          onClick={() => handleCancelSession(session.id)}
+                                          disabled={cancelPending || cancelConfirming}
+                                          className="mb-1"
+                                        >
+                                          {cancelPending || cancelConfirming
+                                            ? 'Cancelling...'
+                                            : 'Cancel'}
+                                        </Button>
+                                      )}
+
+                                      {/* Status messages for other states */}
+                                      {session.state === 2 && (
+                                        <Badge variant="destructive" className="text-xs">
+                                          Cancelled
+                                        </Badge>
+                                      )}
+                                      {session.state === 3 && (
+                                        <Badge variant="outline" className="text-xs">
+                                          Completed
                                         </Badge>
                                       )}
                                     </div>
@@ -633,7 +807,7 @@ export default function MentorsPage() {
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </div>
     </div>
   );

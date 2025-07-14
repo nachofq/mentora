@@ -21,7 +21,7 @@ export default async function CustomRoomConnection(props: {
   }
 
   return (
-    <main data-lk-theme="default">
+    <main data-lk-theme="default" className="page-with-navbar">
       <VideoConferenceClientImpl liveKitUrl={liveKitUrl} token={token} codec={codec} />
     </main>
   );
